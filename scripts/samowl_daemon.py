@@ -328,6 +328,20 @@ def serve(socket_path: str, bundle: ModelBundle, config: dict) -> None:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+def validate_config(config: dict) -> None:
+    """Warn on obviously invalid config values; never raises so startup is not blocked."""
+    detection = config.get("detection", {})
+    threshold = detection.get("threshold")
+    if threshold is not None and not (0.0 < threshold <= 1.0):
+        log.warning("config detection.threshold=%s is outside (0, 1] — check your YAML", threshold)
+    merge_radius = detection.get("merge_radius")
+    if merge_radius is not None and merge_radius <= 0:
+        log.warning("config detection.merge_radius=%s must be positive", merge_radius)
+    max_points = detection.get("max_points")
+    if max_points is not None and max_points <= 0:
+        log.warning("config detection.max_points=%s must be positive", max_points)
+
+
 def load_config(path: str) -> dict:
     """Load YAML config file, returning empty dict on any error or if YAML unavailable."""
     if not path:
@@ -390,6 +404,7 @@ def main() -> None:
     pre_args, _ = pre_parser.parse_known_args()
 
     config = load_config(pre_args.config)
+    validate_config(config)
     args = parse_args(config)
 
     owl_model = str(resolve_existing_path(args.owl_model, "OWL model directory"))
