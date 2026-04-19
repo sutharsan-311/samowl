@@ -131,7 +131,17 @@ class ModelBundle:
 # ---------------------------------------------------------------------------
 # Per-request inference
 # ---------------------------------------------------------------------------
-def _run_inference(req: dict, bundle: ModelBundle) -> dict:
+def get_param(req: dict, config: dict, section: str, key: str, default=None):
+    """Resolve a parameter with precedence: request JSON > YAML config > hardcoded default."""
+    if key in req:
+        return req[key]
+    section_cfg = config.get(section, {})
+    if key in section_cfg:
+        return section_cfg[key]
+    return default
+
+
+def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
     """Run the full OWL-ViT + SAM pipeline for one request.
 
     Returns a dict with key 'success' plus result fields or an 'error' string.
@@ -144,19 +154,19 @@ def _run_inference(req: dict, bundle: ModelBundle) -> dict:
     if not text:
         return {"success": False, "error": "request missing text"}
 
-    # --- optional fields with defaults ---
+    # --- optional fields: request > YAML config > hardcoded default ---
     depth_image_path = req.get("depth_image_path", "")
     camera_model_path = req.get("camera_model_path", "")
-    threshold = float(req.get("threshold", 0.1))
-    mask_threshold = float(req.get("mask_threshold", 0.0))
-    output_mask = req.get("output_mask", "mask.png")
-    output_boundary = req.get("output_boundary", "boundary.png")
-    output_depth_mask = req.get("output_depth_mask", "")
-    output_points = req.get("output_points", "")
-    output_hotspots = req.get("output_hotspots", "")
-    room_id = req.get("room_id", "simulation_room")
-    merge_radius = float(req.get("merge_radius", 0.10))
-    max_points = int(req.get("max_points", 80000))
+    threshold = float(get_param(req, config, "detection", "threshold", 0.1))
+    mask_threshold = float(get_param(req, config, "detection", "mask_threshold", 0.0))
+    output_mask = get_param(req, config, "outputs", "mask", "mask.png")
+    output_boundary = get_param(req, config, "outputs", "boundary", "boundary.png")
+    output_depth_mask = get_param(req, config, "outputs", "depth_mask", "")
+    output_points = get_param(req, config, "outputs", "points", "")
+    output_hotspots = get_param(req, config, "outputs", "hotspots", "")
+    room_id = get_param(req, config, "system", "room_id", "simulation_room")
+    merge_radius = float(get_param(req, config, "detection", "merge_radius", 0.10))
+    max_points = int(get_param(req, config, "detection", "max_points", 80000))
 
     # Ensure output directories exist.
     for p in [output_mask, output_boundary, output_depth_mask, output_points, output_hotspots]:
@@ -245,7 +255,7 @@ def _run_inference(req: dict, bundle: ModelBundle) -> dict:
 # ---------------------------------------------------------------------------
 # Socket server
 # ---------------------------------------------------------------------------
-def _handle_client(conn: socket.socket, bundle: ModelBundle) -> None:
+def _handle_client(conn: socket.socket, bundle: ModelBundle, config: dict) -> None:
     """Read one newline-delimited JSON request; write one JSON response."""
     try:
         data = b""
@@ -265,7 +275,7 @@ def _handle_client(conn: socket.socket, bundle: ModelBundle) -> None:
 
         log.info("Request: image=%s text=%s", req.get("image_path", "?"), req.get("text", "?"))
         try:
-            resp = _run_inference(req, bundle)
+            resp = _run_inference(req, bundle, config)
         except Exception as exc:  # noqa: BLE001
             log.exception("Inference error")
             resp = {"success": False, "error": str(exc)}
@@ -281,7 +291,7 @@ def _handle_client(conn: socket.socket, bundle: ModelBundle) -> None:
         conn.close()
 
 
-def serve(socket_path: str, bundle: ModelBundle) -> None:
+def serve(socket_path: str, bundle: ModelBundle, config: dict) -> None:
     """Accept connections on a Unix socket until the process is killed."""
     sock_file = Path(socket_path)
     sock_file.parent.mkdir(parents=True, exist_ok=True)
@@ -296,7 +306,7 @@ def serve(socket_path: str, bundle: ModelBundle) -> None:
     try:
         while True:
             conn, _ = server.accept()
-            _handle_client(conn, bundle)
+            _handle_client(conn, bundle, config)
     except KeyboardInterrupt:
         log.info("Interrupted — shutting down")
     finally:
@@ -377,7 +387,7 @@ def main() -> None:
     mask_decoder = str(resolve_existing_path(args.mask_decoder, "SAM mask decoder engine"))
 
     bundle = ModelBundle(owl_model, image_encoder, mask_decoder, args.threshold)
-    serve(args.socket, bundle)
+    serve(args.socket, bundle, config)
 
 
 if __name__ == "__main__":
