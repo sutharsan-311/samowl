@@ -41,6 +41,27 @@ class SceneQueryNode(Node):
         self.get_logger().debug(
             f'Graph updated: {len(self._nodes)} nodes, {len(self._edges)} edges')
 
+        # Debug: exercise find_by_label on every update.
+        for label in {n['label'] for n in self._nodes}:
+            results = self.find_by_label(label)
+            self.get_logger().debug(f'find_by_label({label!r}) → {results}')
+
+    # ------------------------------------------------------------------ #
+    #  Queries                                                             #
+    # ------------------------------------------------------------------ #
+
+    def find_by_label(self, label: str) -> list:
+        """Return all nodes whose label matches, as clean output dicts."""
+        return [
+            {
+                'id':       node['id'],
+                'position': node['position'],
+                'velocity': node.get('velocity', [0.0, 0.0, 0.0]),
+            }
+            for node in self._nodes
+            if node['label'] == label
+        ]
+
 
 def main(args=None):
     rclpy.init(args=args)
