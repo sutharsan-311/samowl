@@ -994,26 +994,20 @@ private:
       });
     }
 
-    // ── TODO(scan-edges): implement edge-building ──────────────────────────
-    // Iterate all pairs in node_list; add a JSON edge object to edges_arr
-    // when two nodes are spatially close.
-    //
-    // Each edge should be: {"source": id_a, "target": id_b, "relation": "near"}
-    //
-    // Suggested start (5–10 lines):
-    //   const float near_thresh = 1.5f;  // metres — tweak to taste
-    //   for (size_t i = 0; i < node_list.size(); ++i) {
-    //     for (size_t j = i + 1; j < node_list.size(); ++j) {
-    //       ...
-    //     }
-    //   }
-    //
-    // Trade-offs to consider:
-    //   • Distance threshold: tighter → sparser graph; looser → noisier graph
-    //   • Relation type: just "near", or differentiate "above"/"adjacent"?
-    //   • Cross-label only vs same-label edges?
-    // ──────────────────────────────────────────────────────────────────────
+    // Build "near" edges — matches NEAR_THRESHOLD used in scene_graph_node.py.
     json edges_arr = json::array();
+    const float near_thresh = 1.5f;
+    for (size_t i = 0; i < node_list.size(); ++i) {
+      for (size_t j = i + 1; j < node_list.size(); ++j) {
+        const auto & a = node_list[i];
+        const auto & b = node_list[j];
+        if (dist3(a.cx, a.cy, a.cz, b.cx, b.cy, b.cz) < near_thresh) {
+          edges_arr.push_back({
+            {"source", a.id}, {"target", b.id}, {"relation", "near"},
+          });
+        }
+      }
+    }
 
     json sg;
     sg["nodes"] = nodes_arr;
