@@ -758,6 +758,14 @@ cv::Mat depth_to_png_image(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
   throw std::runtime_error("Unsupported depth image encoding: " + msg->encoding);
 }
 
+struct DetectionRecord
+{
+  std::string label;
+  float score;
+  float cx, cy, cz;
+  double stamp;
+};
+
 class TopicRunner : public rclcpp::Node
 {
 public:
@@ -804,7 +812,9 @@ private:
     const Image::ConstSharedPtr & depth_msg,
     const CameraInfo::ConstSharedPtr & info_msg)
   {
-    if (processing_.exchange(true)) {
+    // In scan mode every frame must be processed; the single-threaded executor
+    // serializes callbacks naturally so no frame-drop guard is needed.
+    if (options_.mode == "live" && processing_.exchange(true)) {
       return;
     }
 
@@ -836,19 +846,29 @@ private:
       if (last_status_ != EXIT_SUCCESS) {
         RCLCPP_ERROR(get_logger(), "OWL + SAM pipeline failed with status %d", last_status_);
       } else {
+        ++frame_count_;
         if (!result.output_points.empty()) {
           pcl::PointCloud<pcl::PointXYZ> cloud;
           if (load_stable_pcd(result.output_points, cloud)) {
             float cx, cy, cz;
             compute_centroid(cloud, cx, cy, cz);
-            publish_points(cloud, rgb_msg->header.stamp);
-            publish_objects(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
-            publish_detections(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
+            if (options_.mode == "scan") {
+              const double ts = static_cast<double>(rgb_msg->header.stamp.sec) +
+                rgb_msg->header.stamp.nanosec * 1e-9;
+              scan_detections_.push_back({options_.text, result.score, cx, cy, cz, ts});
+              RCLCPP_DEBUG(get_logger(), "[scan] frame=%d label=%s score=%.3f pos=(%.2f,%.2f,%.2f)",
+                frame_count_, options_.text.c_str(), result.score, cx, cy, cz);
+            } else {
+              publish_points(cloud, rgb_msg->header.stamp);
+              publish_objects(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
+              publish_detections(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
+            }
           }
           std::error_code ec;
           fs::remove(result.output_points, ec);
         }
-        RCLCPP_INFO(get_logger(), "Saved mask to '%s'", options_.output_mask.c_str());
+        RCLCPP_INFO(get_logger(), "[%s] frame=%d mask='%s'",
+          options_.mode.c_str(), frame_count_, options_.output_mask.c_str());
         // Clean up per-frame scratch files so /tmp/samowl does not grow
         // indefinitely.  Errors are logged but do not affect last_status_.
         for (const auto & p : {rgb_path, depth_path, camera_model_path}) {
@@ -866,7 +886,9 @@ private:
     }
 
     processing_ = false;
-    if (!options_.continuous) {
+    if (options_.mode == "scan") {
+      reset_idle_timer();
+    } else if (!options_.continuous) {
       rclcpp::shutdown();
     }
   }
@@ -1023,7 +1045,11 @@ private:
   rclcpp::Time last_pcd_warn_{0, 0, RCL_ROS_TIME};
   int detection_counter_{0};
   std::atomic_bool processing_{false};
+  std::atomic_bool finalized_{false};
   int last_status_{EXIT_SUCCESS};
+  int frame_count_{0};
+  std::vector<DetectionRecord> scan_detections_;
+  rclcpp::TimerBase::SharedPtr idle_timer_;
 };
 }  // namespace
 
