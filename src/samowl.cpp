@@ -447,38 +447,22 @@ int start_daemon(const Options & options, const std::string & daemon_script)
 // Build a JSON request object from options (no trailing newline).
 static std::string build_request_json(const Options & options)
 {
-  // Very small hand-rolled JSON — avoids a heavy JSON library dependency.
-  // All values are either numbers or strings with no special characters that
-  // would require escaping beyond what we produce here.
-  auto esc = [](const std::string & s) -> std::string {
-    std::string out;
-    out.reserve(s.size() + 2);
-    out += '"';
-    for (const char c : s) {
-      if (c == '"')  { out += "\\\""; }
-      else if (c == '\\') { out += "\\\\"; }
-      else { out += c; }
-    }
-    out += '"';
-    return out;
-  };
-
-  std::string j = "{";
-  j += "\"image_path\":"        + esc(options.image)            + ",";
-  j += "\"depth_image_path\":"  + esc(options.depth_image)      + ",";
-  j += "\"camera_model_path\":" + esc(options.camera_model)     + ",";
-  j += "\"text\":"              + esc(options.text)             + ",";
-  j += "\"threshold\":"         + options.threshold             + ",";
-  j += "\"mask_threshold\":"    + options.mask_threshold        + ",";
-  j += "\"output_mask\":"       + esc(options.output_mask)      + ",";
-  j += "\"output_boundary\":"   + esc(options.output_boundary)  + ",";
-  j += "\"output_depth_mask\":" + esc(options.output_depth_mask)+ ",";
-  j += "\"output_points\":"     + esc(options.output_points)    + ",";
-  j += "\"output_hotspots\":"   + esc(options.output_hotspots)  + ",";
-  j += "\"room_id\":"           + esc(options.room_id)          + ",";
-  j += "\"merge_radius\":"      + options.merge_radius;
-  j += "}";
-  return j;
+  using json = nlohmann::json;
+  json j;
+  j["image_path"]        = options.image;
+  j["depth_image_path"]  = options.depth_image;
+  j["camera_model_path"] = options.camera_model;
+  j["text"]              = options.text;
+  j["threshold"]         = std::stod(options.threshold);
+  j["mask_threshold"]    = std::stod(options.mask_threshold);
+  j["output_mask"]       = options.output_mask;
+  j["output_boundary"]   = options.output_boundary;
+  j["output_depth_mask"] = options.output_depth_mask;
+  j["output_points"]     = options.output_points;
+  j["output_hotspots"]   = options.output_hotspots;
+  j["room_id"]           = options.room_id;
+  j["merge_radius"]      = std::stod(options.merge_radius);
+  return j.dump();
 }
 
 // Returns 0 on success, non-zero on error.
@@ -672,32 +656,27 @@ void write_camera_model(
   const geometry_msgs::msg::TransformStamped & transform,
   const Options & options)
 {
+  using json = nlohmann::json;
+  const auto & t = transform.transform;
+  json j;
+  j["width"]       = info_msg->width;
+  j["height"]      = info_msg->height;
+  j["fx"]          = info_msg->k[0];
+  j["fy"]          = info_msg->k[4];
+  j["cx"]          = info_msg->k[2];
+  j["cy"]          = info_msg->k[5];
+  j["depth_scale"] = options.depth_scale;
+  j["source_frame"]  = transform.header.frame_id;
+  j["camera_frame"]  = transform.child_frame_id;
+  j["map_frame"]     = options.map_frame;
+  j["translation"]   = {t.translation.x, t.translation.y, t.translation.z};
+  j["rotation_xyzw"] = {t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w};
+
   std::ofstream out(path);
   if (!out) {
     throw std::runtime_error("Could not write camera model: " + path.string());
   }
-
-  out << "{\n";
-  out << "  \"width\": " << info_msg->width << ",\n";
-  out << "  \"height\": " << info_msg->height << ",\n";
-  out << "  \"fx\": " << info_msg->k[0] << ",\n";
-  out << "  \"fy\": " << info_msg->k[4] << ",\n";
-  out << "  \"cx\": " << info_msg->k[2] << ",\n";
-  out << "  \"cy\": " << info_msg->k[5] << ",\n";
-  out << "  \"depth_scale\": " << options.depth_scale << ",\n";
-  out << "  \"source_frame\": \"" << transform.header.frame_id << "\",\n";
-  out << "  \"camera_frame\": \"" << transform.child_frame_id << "\",\n";
-  out << "  \"map_frame\": \"" << options.map_frame << "\",\n";
-  out << "  \"translation\": ["
-      << transform.transform.translation.x << ", "
-      << transform.transform.translation.y << ", "
-      << transform.transform.translation.z << "],\n";
-  out << "  \"rotation_xyzw\": ["
-      << transform.transform.rotation.x << ", "
-      << transform.transform.rotation.y << ", "
-      << transform.transform.rotation.z << ", "
-      << transform.transform.rotation.w << "]\n";
-  out << "}\n";
+  out << j.dump(2) << "\n";
 }
 
 cv::Mat rgb_to_bgr(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
