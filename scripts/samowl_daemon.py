@@ -131,14 +131,24 @@ class ModelBundle:
 # ---------------------------------------------------------------------------
 # Per-request inference
 # ---------------------------------------------------------------------------
-def get_param(req: dict, config: dict, section: str, key: str, default=None):
-    """Resolve a parameter with precedence: request JSON > YAML config > hardcoded default."""
-    if key in req:
-        return req[key]
-    section_cfg = config.get(section, {})
-    if key in section_cfg:
-        return section_cfg[key]
-    return default
+def get_param(req: dict, config: dict, section: str, key: str, default=None, cast=None):
+    """Resolve a parameter with precedence: request JSON > YAML config > hardcoded default.
+
+    Null/None values in req are treated as absent so YAML can fill in.
+    If cast is provided and the resolved value fails conversion, default is returned.
+    """
+    if key in req and req[key] is not None:
+        val = req[key]
+    elif key in config.get(section, {}):
+        val = config[section][key]
+    else:
+        val = default
+    if cast is not None:
+        try:
+            return cast(val)
+        except Exception:
+            return default
+    return val
 
 
 def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
@@ -157,16 +167,16 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
     # --- optional fields: request > YAML config > hardcoded default ---
     depth_image_path = req.get("depth_image_path", "")
     camera_model_path = req.get("camera_model_path", "")
-    threshold = float(get_param(req, config, "detection", "threshold", 0.1))
-    mask_threshold = float(get_param(req, config, "detection", "mask_threshold", 0.0))
+    threshold = get_param(req, config, "detection", "threshold", 0.1, float)
+    mask_threshold = get_param(req, config, "detection", "mask_threshold", 0.0, float)
     output_mask = get_param(req, config, "outputs", "mask", "mask.png")
     output_boundary = get_param(req, config, "outputs", "boundary", "boundary.png")
     output_depth_mask = get_param(req, config, "outputs", "depth_mask", "")
     output_points = get_param(req, config, "outputs", "points", "")
     output_hotspots = get_param(req, config, "outputs", "hotspots", "")
     room_id = get_param(req, config, "system", "room_id", "simulation_room")
-    merge_radius = float(get_param(req, config, "detection", "merge_radius", 0.10))
-    max_points = int(get_param(req, config, "detection", "max_points", 80000))
+    merge_radius = get_param(req, config, "detection", "merge_radius", 0.10, float)
+    max_points = get_param(req, config, "detection", "max_points", 80000, int)
 
     # Ensure output directories exist.
     for p in [output_mask, output_boundary, output_depth_mask, output_points, output_hotspots]:
