@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+"""Persistent Unix-socket daemon that loads ML models once and serves inference requests.
+
+Protocol
+--------
+Each request is a single UTF-8 JSON object followed by a newline.
+Each response is a single UTF-8 JSON object followed by a newline.
+
+Request fields
+--------------
+  image_path           : str   (required)
+  depth_image_path     : str   (optional, default "")
+  camera_model_path    : str   (optional, default "")
+  text                 : str   (required)
+  threshold            : float (optional, default 0.1)
+  mask_threshold       : float (optional, default 0.0)
+  output_mask          : str   (optional, default "mask.png")
+  output_boundary      : str   (optional, default "boundary.png")
+  output_depth_mask    : str   (optional, default "")
+  output_points        : str   (optional, default "")
+  output_hotspots      : str   (optional, default "")
+  room_id              : str   (optional, default "simulation_room")
+  merge_radius         : float (optional, default 0.10)
+  max_points           : int   (optional, default 80000)
+
+Response fields (on success)
+-----------------------------
+  success              : true
+  image                : str
+  depth_image          : str
+  text                 : str
+  bbox                 : list[float]
+  score                : float
+  label                : int
+  mask_iou             : list
+  output_boundary      : str
+  output_mask          : str
+  output_depth_mask    : str
+  camera_model         : str
+  output_points        : str
+  output_hotspots      : str
+  points_count         : int
+  hotspot_map          : dict
+
+Response fields (on failure)
+-----------------------------
+  success              : false
+  error                : str
+"""
+
+import argparse
+import json
+import logging
+import os
+import socket
+import sys
+import types
+from pathlib import Path
+
+from PIL import Image
+
+# ---------------------------------------------------------------------------
+# Import inference helpers from samowl_pipeline, regardless of install layout
+# ---------------------------------------------------------------------------
+def _import_pipeline():
+    """Return the samowl_pipeline module, searching the usual locations."""
+    import importlib.util
+
+    candidates = [
+        Path(__file__).resolve().parent / "samowl_pipeline.py",
+    ]
+    env_script = os.environ.get("SAMOWL_PIPELINE_SCRIPT")
+    if env_script:
+        candidates.insert(0, Path(env_script))
+
+    for candidate in candidates:
+        if candidate.exists():
+            spec = importlib.util.spec_from_file_location("samowl_pipeline", candidate)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+
+    # Fall back to a plain import (works when installed as a package).
+    import samowl_pipeline as mod  # type: ignore
+    return mod
+
+
+_pipeline = _import_pipeline()
+
+OwlVit = _pipeline.OwlVit
+Predictor = _pipeline.Predictor
+bbox_to_points = _pipeline.bbox_to_points
+draw_boundary = _pipeline.draw_boundary
+save_mask = _pipeline.save_mask
+save_masked_depth = _pipeline.save_masked_depth
+project_mask_to_map_points = _pipeline.project_mask_to_map_points
+estimate_normal = _pipeline.estimate_normal
+write_pcd = _pipeline.write_pcd
+write_hotspot_json = _pipeline.write_hotspot_json
+resolve_existing_path = _pipeline.resolve_existing_path
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [samowl_daemon] %(levelname)s %(message)s",
+    stream=sys.stderr,
+)
+log = logging.getLogger("samowl_daemon")
+
+
+# ---------------------------------------------------------------------------
+# Model holder — loaded once at startup
+# ---------------------------------------------------------------------------
+class ModelBundle:
+    def __init__(self, owl_model: str, image_encoder: str, mask_decoder: str, default_threshold: float):
+        log.info("Loading OWL-ViT from %s", owl_model)
+        self.owl = OwlVit(threshold=default_threshold, model_name=owl_model)
+        log.info("Loading SAM TensorRT engines: encoder=%s  decoder=%s", image_encoder, mask_decoder)
+        self.sam = Predictor(image_encoder, mask_decoder)
+        log.info("Models loaded — daemon ready")
+
+
+# ---------------------------------------------------------------------------
+# Per-request inference
+# ---------------------------------------------------------------------------
+def _run_inference(req: dict, bundle: ModelBundle) -> dict:
+    """Run the full OWL-ViT + SAM pipeline for one request.
+
+    Returns a dict with key 'success' plus result fields or an 'error' string.
+    """
+    # --- required fields ---
+    image_path = req.get("image_path", "")
+    text = req.get("text", "")
+    if not image_path:
+        return {"success": False, "error": "request missing image_path"}
+    if not text:
+        return {"success": False, "error": "request missing text"}
+
+    # --- optional fields with defaults ---
+    depth_image_path = req.get("depth_image_path", "")
+    camera_model_path = req.get("camera_model_path", "")
+    threshold = float(req.get("threshold", 0.1))
+    mask_threshold = float(req.get("mask_threshold", 0.0))
+    output_mask = req.get("output_mask", "mask.png")
+    output_boundary = req.get("output_boundary", "boundary.png")
+    output_depth_mask = req.get("output_depth_mask", "")
+    output_points = req.get("output_points", "")
+    output_hotspots = req.get("output_hotspots", "")
+    room_id = req.get("room_id", "simulation_room")
+    merge_radius = float(req.get("merge_radius", 0.10))
+    max_points = int(req.get("max_points", 80000))
+
+    # Ensure output directories exist.
+    for p in [output_mask, output_boundary, output_depth_mask, output_points, output_hotspots]:
+        if p:
+            Path(p).parent.mkdir(parents=True, exist_ok=True)
+
+    image = Image.open(image_path).convert("RGB")
+
+    # OWL-ViT: update threshold dynamically without reloading the model.
+    bundle.owl.threshold = threshold
+    detections = bundle.owl.predict(image, texts=[text])
+    if not detections:
+        return {
+            "success": False,
+            "error": f"No OWL detections for prompt '{text}' at threshold {threshold}",
+        }
+
+    detection = max(detections, key=lambda d: d["score"])
+    detection["bbox"] = [
+        max(0.0, min(float(image.width - 1), float(detection["bbox"][0]))),
+        max(0.0, min(float(image.height - 1), float(detection["bbox"][1]))),
+        max(0.0, min(float(image.width - 1), float(detection["bbox"][2]))),
+        max(0.0, min(float(image.height - 1), float(detection["bbox"][3]))),
+    ]
+    draw_boundary(image, detection, output_boundary)
+
+    points, point_labels = bbox_to_points(detection["bbox"])
+    bundle.sam.set_image(image)
+    mask, mask_iou, _ = bundle.sam.predict(points, point_labels)
+    mask_image = save_mask(mask, output_mask, mask_threshold)
+
+    if depth_image_path and output_depth_mask:
+        save_masked_depth(depth_image_path, mask_image, output_depth_mask)
+
+    hotspot_map: dict = {}
+    points_count = 0
+
+    if depth_image_path and camera_model_path and output_points:
+        map_points, camera_model = project_mask_to_map_points(
+            depth_image_path,
+            mask_image,
+            camera_model_path,
+            max_points,
+        )
+        points_count = int(len(map_points))
+        write_pcd(output_points, map_points)
+        normal = estimate_normal(map_points)
+        if output_hotspots:
+            # write_hotspot_json expects an args-like namespace.
+            args_ns = types.SimpleNamespace(
+                room_id=room_id,
+                merge_radius=merge_radius,
+                text=text,
+                output_points=output_points,
+            )
+            hotspot_map = write_hotspot_json(
+                output_hotspots,
+                args_ns,
+                detection,
+                mask_iou,
+                map_points,
+                normal,
+                camera_model,
+            )
+
+    return {
+        "success": True,
+        "image": str(image_path),
+        "depth_image": depth_image_path,
+        "text": text,
+        "bbox": detection["bbox"],
+        "score": detection["score"],
+        "label": detection["label"],
+        "mask_iou": mask_iou.detach().cpu().numpy().tolist(),
+        "output_boundary": str(output_boundary),
+        "output_mask": str(output_mask),
+        "output_depth_mask": output_depth_mask,
+        "camera_model": camera_model_path,
+        "output_points": output_points,
+        "output_hotspots": output_hotspots,
+        "points_count": points_count,
+        "hotspot_map": hotspot_map,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Socket server
+# ---------------------------------------------------------------------------
+def _handle_client(conn: socket.socket, bundle: ModelBundle) -> None:
+    """Read one newline-delimited JSON request; write one JSON response."""
+    try:
+        data = b""
+        while b"\n" not in data:
+            chunk = conn.recv(65536)
+            if not chunk:
+                return
+            data += chunk
+
+        line, _ = data.split(b"\n", 1)
+        try:
+            req = json.loads(line.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            resp = {"success": False, "error": f"JSON parse error: {exc}"}
+            conn.sendall(json.dumps(resp).encode("utf-8") + b"\n")
+            return
+
+        log.info("Request: image=%s text=%s", req.get("image_path", "?"), req.get("text", "?"))
+        try:
+            resp = _run_inference(req, bundle)
+        except Exception as exc:  # noqa: BLE001
+            log.exception("Inference error")
+            resp = {"success": False, "error": str(exc)}
+
+        if resp.get("success"):
+            log.info("Done: score=%.3f points=%d", resp.get("score", 0.0), resp.get("points_count", 0))
+        else:
+            log.error("Failed: %s", resp.get("error", "unknown"))
+
+        conn.sendall(json.dumps(resp).encode("utf-8") + b"\n")
+
+    finally:
+        conn.close()
+
+
+def serve(socket_path: str, bundle: ModelBundle) -> None:
+    """Accept connections on a Unix socket until the process is killed."""
+    sock_file = Path(socket_path)
+    sock_file.parent.mkdir(parents=True, exist_ok=True)
+    if sock_file.exists():
+        sock_file.unlink()
+
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(socket_path)
+    server.listen(1)
+    log.info("Listening on %s", socket_path)
+
+    try:
+        while True:
+            conn, _ = server.accept()
+            _handle_client(conn, bundle)
+    except KeyboardInterrupt:
+        log.info("Interrupted — shutting down")
+    finally:
+        server.close()
+        if sock_file.exists():
+            sock_file.unlink()
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="samowl persistent inference daemon")
+    parser.add_argument(
+        "--socket",
+        default="/tmp/samowl/daemon.sock",
+        help="Unix socket path to listen on (default: /tmp/samowl/daemon.sock)",
+    )
+    parser.add_argument(
+        "--owl-model",
+        default="data/owlvit-base-patch32",
+        help="OWL-ViT model directory (default: data/owlvit-base-patch32)",
+    )
+    parser.add_argument(
+        "--image-encoder",
+        default="data/resnet18_image_encoder.engine",
+        help="SAM image encoder TensorRT engine",
+    )
+    parser.add_argument(
+        "--mask-decoder",
+        default="data/mobile_sam_mask_decoder.engine",
+        help="SAM mask decoder TensorRT engine",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.1,
+        help="Default OWL detection threshold; overridden per-request (default: 0.1)",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    owl_model = str(resolve_existing_path(args.owl_model, "OWL model directory"))
+    image_encoder = str(resolve_existing_path(args.image_encoder, "SAM image encoder engine"))
+    mask_decoder = str(resolve_existing_path(args.mask_decoder, "SAM mask decoder engine"))
+
+    bundle = ModelBundle(owl_model, image_encoder, mask_decoder, args.threshold)
+    serve(args.socket, bundle)
+
+
+if __name__ == "__main__":
+    main()

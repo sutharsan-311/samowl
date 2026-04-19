@@ -1,4 +1,6 @@
+#include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -18,8 +20,11 @@
 #include <tf2_ros/transform_listener.h>
 
 #include <atomic>
+#include <cerrno>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -56,6 +61,8 @@ struct Options
   std::string merge_radius{"0.10"};
   std::string python{"python3"};
   std::string work_dir{"/tmp/samowl"};
+  std::string daemon_socket{"/tmp/samowl/daemon.sock"};
+  double depth_scale{0.001};
   bool continuous{false};
 };
 
@@ -77,6 +84,8 @@ void print_usage(const char * program)
     << "  --map-frame <frame>         Global frame for saved 3D points (default: map)\n"
     << "  --room-id <id>              Room id for hotspot JSON (default: simulation_room)\n"
     << "  --work-dir <path>           Temporary topic frame directory (default: /tmp/samowl)\n"
+    << "  --daemon-socket <path>      Unix socket for persistent Python daemon (default: /tmp/samowl/daemon.sock)\n"
+    << "  --depth-scale <float>       Depth pixel to metres scale factor (default: 0.001)\n"
     << "  --continuous                Keep processing synchronized topic frames\n"
     << "  --owl-model <path>          Package-local OWL-ViT model directory\n"
     << "  --image-encoder <path>      SAM image encoder TensorRT engine\n"
@@ -87,7 +96,8 @@ void print_usage(const char * program)
     << "  --python <path>             Python executable (default: python3)\n"
     << "  --help                      Show this help\n\n"
     << "Environment:\n"
-    << "  SAMOWL_PIPELINE_SCRIPT can override the bundled Python model bridge.\n";
+    << "  SAMOWL_PIPELINE_SCRIPT can override the bundled Python model bridge.\n"
+    << "  SAMOWL_DAEMON_SCRIPT can override the bundled Python daemon script.\n";
 }
 
 bool read_value(int & index, int argc, char ** argv, std::string & value)
@@ -162,6 +172,17 @@ bool parse_args(int argc, char ** argv, Options & options)
       if (!read_value(i, argc, argv, options.merge_radius)) return false;
     } else if (arg == "--python") {
       if (!read_value(i, argc, argv, options.python)) return false;
+    } else if (arg == "--daemon-socket") {
+      if (!read_value(i, argc, argv, options.daemon_socket)) return false;
+    } else if (arg == "--depth-scale") {
+      std::string val;
+      if (!read_value(i, argc, argv, val)) return false;
+      try {
+        options.depth_scale = std::stod(val);
+      } catch (...) {
+        std::cerr << "--depth-scale must be a floating-point number\n";
+        return false;
+      }
     } else {
       std::cerr << "Unknown argument: " << arg << "\n";
       return false;
@@ -186,96 +207,258 @@ bool parse_args(int argc, char ** argv, Options & options)
   return true;
 }
 
-std::string find_script()
+// ---------------------------------------------------------------------------
+// Script discovery
+// ---------------------------------------------------------------------------
+std::string find_script(const char * env_var, const char * filename, const char * source_path)
 {
-  if (const char * env_script = std::getenv("SAMOWL_PIPELINE_SCRIPT")) {
+  if (const char * env_script = std::getenv(env_var)) {
     if (fs::exists(env_script)) {
       return env_script;
     }
-    std::cerr << "SAMOWL_PIPELINE_SCRIPT does not exist: " << env_script << "\n";
+    std::cerr << env_var << " does not exist: " << env_script << "\n";
   }
 
   try {
-    const fs::path installed_script =
-      fs::path(ament_index_cpp::get_package_share_directory("samowl")) / "scripts" / "samowl_pipeline.py";
-    if (fs::exists(installed_script)) {
-      return installed_script.string();
+    const fs::path installed =
+      fs::path(ament_index_cpp::get_package_share_directory("samowl")) / "scripts" / filename;
+    if (fs::exists(installed)) {
+      return installed.string();
     }
   } catch (const std::exception &) {
   }
 
-  if (fs::exists(SAMOWL_SOURCE_SCRIPT_PATH)) {
-    return SAMOWL_SOURCE_SCRIPT_PATH;
+  if (fs::exists(source_path)) {
+    return source_path;
   }
 
-  return "samowl_pipeline.py";
+  return filename;
 }
 
-int run_python(const Options & options, const std::string & script)
+// ---------------------------------------------------------------------------
+// Daemon lifecycle — fork once at startup; wait for the socket to appear.
+// ---------------------------------------------------------------------------
+
+// Maximum milliseconds to wait for the daemon socket to become available.
+static constexpr int DAEMON_SOCKET_TIMEOUT_MS = 30000;
+// Poll interval while waiting.
+static constexpr int DAEMON_SOCKET_POLL_MS = 100;
+
+// Global daemon PID so we can reap it on exit.
+static pid_t g_daemon_pid = -1;
+
+// Returns 0 if the daemon was started (or was already running), non-zero on error.
+int start_daemon(const Options & options, const std::string & daemon_script)
 {
+  // If the socket already exists a daemon is already running — nothing to do.
+  if (fs::exists(options.daemon_socket)) {
+    std::cerr << "Daemon socket already present at " << options.daemon_socket
+              << " — reusing existing daemon\n";
+    return 0;
+  }
+
+  // Ensure the work directory exists so the socket path is valid.
+  fs::create_directories(options.work_dir);
+
   std::vector<std::string> args = {
     options.python,
-    script,
-    "--image", options.image,
-    "--text", options.text,
-    "--output-mask", options.output_mask,
-    "--output-boundary", options.output_boundary,
-    "--owl-model", options.owl_model,
+    daemon_script,
+    "--socket",        options.daemon_socket,
+    "--owl-model",     options.owl_model,
     "--image-encoder", options.image_encoder,
-    "--mask-decoder", options.mask_decoder,
-    "--threshold", options.threshold,
-    "--mask-threshold", options.mask_threshold
+    "--mask-decoder",  options.mask_decoder,
+    "--threshold",     options.threshold,
   };
 
-  if (!options.depth_image.empty()) {
-    args.push_back("--depth-image");
-    args.push_back(options.depth_image);
-    args.push_back("--output-depth-mask");
-    args.push_back(options.output_depth_mask);
-    args.push_back("--camera-model");
-    args.push_back(options.camera_model);
-    args.push_back("--output-points");
-    args.push_back(options.output_points);
-    args.push_back("--output-hotspots");
-    args.push_back(options.output_hotspots);
-    args.push_back("--room-id");
-    args.push_back(options.room_id);
-    args.push_back("--merge-radius");
-    args.push_back(options.merge_radius);
+  std::vector<char *> argv_ptrs;
+  argv_ptrs.reserve(args.size() + 1);
+  for (auto & a : args) {
+    argv_ptrs.push_back(a.data());
   }
-
-  std::vector<char *> argv;
-  argv.reserve(args.size() + 1);
-  for (auto & arg : args) {
-    argv.push_back(arg.data());
-  }
-  argv.push_back(nullptr);
+  argv_ptrs.push_back(nullptr);
 
   const pid_t pid = fork();
   if (pid < 0) {
-    perror("fork");
+    perror("start_daemon: fork");
     return EXIT_FAILURE;
   }
 
   if (pid == 0) {
-    execvp(options.python.c_str(), argv.data());
-    perror("execvp");
+    // Child: become the daemon.
+    execvp(options.python.c_str(), argv_ptrs.data());
+    perror("start_daemon: execvp");
     _exit(127);
   }
 
-  int status = 0;
-  if (waitpid(pid, &status, 0) < 0) {
-    perror("waitpid");
+  g_daemon_pid = pid;
+  std::cerr << "Daemon PID " << pid << " — waiting for socket " << options.daemon_socket << "\n";
+
+  // Poll until the socket file appears or the timeout expires.
+  const int max_polls = DAEMON_SOCKET_TIMEOUT_MS / DAEMON_SOCKET_POLL_MS;
+  for (int attempt = 0; attempt < max_polls; ++attempt) {
+    struct timespec ts{0, DAEMON_SOCKET_POLL_MS * 1000000L};
+    nanosleep(&ts, nullptr);
+    if (fs::exists(options.daemon_socket)) {
+      std::cerr << "Daemon socket ready after " << (attempt + 1) * DAEMON_SOCKET_POLL_MS << " ms\n";
+      return 0;
+    }
+    // If the child already exited, fail fast.
+    int wstatus = 0;
+    const pid_t ret = waitpid(pid, &wstatus, WNOHANG);
+    if (ret == pid) {
+      std::cerr << "Daemon process exited unexpectedly (status " << WEXITSTATUS(wstatus) << ")\n";
+      g_daemon_pid = -1;
+      return EXIT_FAILURE;
+    }
+  }
+
+  std::cerr << "Timed out waiting for daemon socket at " << options.daemon_socket << "\n";
+  return EXIT_FAILURE;
+}
+
+// ---------------------------------------------------------------------------
+// Socket-based inference client
+// ---------------------------------------------------------------------------
+
+// Build a JSON request object from options (no trailing newline).
+static std::string build_request_json(const Options & options)
+{
+  // Very small hand-rolled JSON — avoids a heavy JSON library dependency.
+  // All values are either numbers or strings with no special characters that
+  // would require escaping beyond what we produce here.
+  auto esc = [](const std::string & s) -> std::string {
+    std::string out;
+    out.reserve(s.size() + 2);
+    out += '"';
+    for (const char c : s) {
+      if (c == '"')  { out += "\\\""; }
+      else if (c == '\\') { out += "\\\\"; }
+      else { out += c; }
+    }
+    out += '"';
+    return out;
+  };
+
+  std::string j = "{";
+  j += "\"image_path\":"        + esc(options.image)            + ",";
+  j += "\"depth_image_path\":"  + esc(options.depth_image)      + ",";
+  j += "\"camera_model_path\":" + esc(options.camera_model)     + ",";
+  j += "\"text\":"              + esc(options.text)             + ",";
+  j += "\"threshold\":"         + options.threshold             + ",";
+  j += "\"mask_threshold\":"    + options.mask_threshold        + ",";
+  j += "\"output_mask\":"       + esc(options.output_mask)      + ",";
+  j += "\"output_boundary\":"   + esc(options.output_boundary)  + ",";
+  j += "\"output_depth_mask\":" + esc(options.output_depth_mask)+ ",";
+  j += "\"output_points\":"     + esc(options.output_points)    + ",";
+  j += "\"output_hotspots\":"   + esc(options.output_hotspots)  + ",";
+  j += "\"room_id\":"           + esc(options.room_id)          + ",";
+  j += "\"merge_radius\":"      + options.merge_radius;
+  j += "}";
+  return j;
+}
+
+// Returns 0 on success, non-zero on error.
+// On success, response_out receives the raw JSON response string.
+static int socket_call(
+  const std::string & socket_path,
+  const std::string & request_json,
+  std::string & response_out)
+{
+  const int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd < 0) {
+    std::cerr << "socket_call: socket(): " << std::strerror(errno) << "\n";
     return EXIT_FAILURE;
   }
 
-  if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
+  struct sockaddr_un addr{};
+  addr.sun_family = AF_UNIX;
+  if (socket_path.size() >= sizeof(addr.sun_path)) {
+    std::cerr << "socket_call: socket path too long\n";
+    close(fd);
+    return EXIT_FAILURE;
   }
-  if (WIFSIGNALED(status)) {
-    std::cerr << "Python bridge terminated by signal " << WTERMSIG(status) << "\n";
+  std::strncpy(addr.sun_path, socket_path.c_str(), sizeof(addr.sun_path) - 1);
+
+  if (connect(fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) < 0) {
+    std::cerr << "socket_call: connect(" << socket_path << "): " << std::strerror(errno) << "\n";
+    close(fd);
+    return EXIT_FAILURE;
   }
-  return EXIT_FAILURE;
+
+  // Send request terminated by a newline.
+  const std::string message = request_json + "\n";
+  std::size_t sent = 0;
+  while (sent < message.size()) {
+    const ssize_t n = write(fd, message.data() + sent, message.size() - sent);
+    if (n < 0) {
+      std::cerr << "socket_call: write(): " << std::strerror(errno) << "\n";
+      close(fd);
+      return EXIT_FAILURE;
+    }
+    sent += static_cast<std::size_t>(n);
+  }
+
+  // Read response until newline or EOF.
+  std::string response;
+  response.reserve(4096);
+  char buf[4096];
+  bool got_newline = false;
+  while (!got_newline) {
+    const ssize_t n = read(fd, buf, sizeof(buf));
+    if (n < 0) {
+      std::cerr << "socket_call: read(): " << std::strerror(errno) << "\n";
+      close(fd);
+      return EXIT_FAILURE;
+    }
+    if (n == 0) {
+      break;  // EOF — treat whatever we got as the full response.
+    }
+    response.append(buf, static_cast<std::size_t>(n));
+    if (response.find('\n') != std::string::npos) {
+      got_newline = true;
+    }
+  }
+  close(fd);
+
+  // Strip trailing newline before returning.
+  while (!response.empty() && (response.back() == '\n' || response.back() == '\r')) {
+    response.pop_back();
+  }
+  response_out = std::move(response);
+  return 0;
+}
+
+// Returns 0 if the daemon reports success, non-zero otherwise.
+int run_python(const Options & options, const std::string & /*script_unused*/)
+{
+  const std::string request = build_request_json(options);
+  std::string response;
+
+  const int rc = socket_call(options.daemon_socket, request, response);
+  if (rc != 0) {
+    std::cerr << "run_python: failed to contact daemon at " << options.daemon_socket << "\n";
+    return EXIT_FAILURE;
+  }
+
+  // Minimal success check: look for "\"success\": true" in the response.
+  // We print the response so downstream tooling can parse it if needed.
+  std::cout << response << "\n";
+
+  if (response.find("\"success\": true") == std::string::npos &&
+      response.find("\"success\":true") == std::string::npos)
+  {
+    // Try to extract the error message for a readable log line.
+    const auto err_pos = response.find("\"error\":");
+    if (err_pos != std::string::npos) {
+      std::cerr << "run_python: daemon reported failure: "
+                << response.substr(err_pos, 200) << "\n";
+    } else {
+      std::cerr << "run_python: daemon reported failure (no error field in response)\n";
+    }
+    return EXIT_FAILURE;
+  }
+
+  return 0;
 }
 
 void write_camera_model(
@@ -296,7 +479,7 @@ void write_camera_model(
   out << "  \"fy\": " << info_msg->k[4] << ",\n";
   out << "  \"cx\": " << info_msg->k[2] << ",\n";
   out << "  \"cy\": " << info_msg->k[5] << ",\n";
-  out << "  \"depth_scale\": 0.001,\n";
+  out << "  \"depth_scale\": " << options.depth_scale << ",\n";
   out << "  \"source_frame\": \"" << transform.header.frame_id << "\",\n";
   out << "  \"camera_frame\": \"" << transform.child_frame_id << "\",\n";
   out << "  \"map_frame\": \"" << options.map_frame << "\",\n";
@@ -435,6 +618,16 @@ private:
         RCLCPP_ERROR(get_logger(), "OWL + SAM pipeline failed with status %d", last_status_);
       } else {
         RCLCPP_INFO(get_logger(), "Saved mask to '%s'", options_.output_mask.c_str());
+        // Clean up per-frame scratch files so /tmp/samowl does not grow
+        // indefinitely.  Errors are logged but do not affect last_status_.
+        for (const auto & p : {rgb_path, depth_path, camera_model_path}) {
+          std::error_code ec;
+          fs::remove(p, ec);
+          if (ec) {
+            RCLCPP_WARN(get_logger(), "Could not remove temp file %s: %s",
+              p.string().c_str(), ec.message().c_str());
+          }
+        }
       }
     } catch (const std::exception & error) {
       last_status_ = EXIT_FAILURE;
@@ -468,20 +661,32 @@ int main(int argc, char ** argv)
     return EXIT_FAILURE;
   }
 
-  const std::string script = find_script();
+  // Find the daemon script (used to launch the persistent Python process).
+  const std::string daemon_script = find_script(
+    "SAMOWL_DAEMON_SCRIPT",
+    "samowl_daemon.py",
+    SAMOWL_SOURCE_DAEMON_PATH
+  );
+
+  // Start the daemon (loads models once; all subsequent calls go via socket).
+  if (start_daemon(options, daemon_script) != 0) {
+    std::cerr << "Failed to start samowl daemon\n";
+    return EXIT_FAILURE;
+  }
+
   if (!options.image.empty()) {
     if (!fs::exists(options.image)) {
       std::cerr << "Input image does not exist: " << options.image << "\n";
       return EXIT_FAILURE;
     }
     std::cout << "Running OWL + SAM pipeline for prompt: " << options.text << "\n";
-    return run_python(options, script);
+    return run_python(options, "");
   }
 
   int ros_argc = 0;
   char ** ros_argv = nullptr;
   rclcpp::init(ros_argc, ros_argv);
-  auto node = std::make_shared<TopicRunner>(options, script);
+  auto node = std::make_shared<TopicRunner>(options, "");
   rclcpp::spin(node);
   const int status = node->last_status();
   if (rclcpp::ok()) {

@@ -1,0 +1,21 @@
+# samowl Python pipeline — Jetson deployment
+#
+# NOT listed here (install via JetPack / system packages):
+#   tensorrt    — use /usr/lib/python3/dist-packages/tensorrt from JetPack
+#   torch       — use Jetson wheel matching your JetPack CUDA version
+#   torchvision — use Jetson wheel (same source as torch)
+#
+# NOT listed here (build from source):
+#   torch2trt   — https://github.com/NVIDIA-AI-IOT/torch2trt
+#                 pin the commit recorded in data/engine_manifest.json
+#
+# JetPack mapping:
+#   JetPack 5.1.x → CUDA 11.4, TRT 8.5.x, torch 2.0.0+nv23.05
+#   JetPack 6.0   → CUDA 12.2, TRT 8.6.x, torch 2.3.0+nv24.05
+
+transformers>=4.35.0,<4.41.0
+tokenizers>=0.14.0,<0.20.0
+huggingface-hub>=0.16.0,<0.25.0
+Pillow>=9.0.0,<11.0.0
+numpy>=1.21.0,<2.0.0
+safetensors>=0.3.0
