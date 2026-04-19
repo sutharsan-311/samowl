@@ -7,6 +7,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(yaml-cpp REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(OpenCV REQUIRED)
@@ -23,6 +24,7 @@ target_compile_definitions(
   PRIVATE
     SAMOWL_SOURCE_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/scripts/samowl_pipeline.py"
     SAMOWL_SOURCE_DAEMON_PATH="${CMAKE_CURRENT_SOURCE_DIR}/scripts/samowl_daemon.py"
+    SAMOWL_SOURCE_CONFIG_PATH="${CMAKE_CURRENT_SOURCE_DIR}/config/samowl.yaml"
 )
 ament_target_dependencies(
   samowl
@@ -35,7 +37,7 @@ ament_target_dependencies(
   tf2
   tf2_ros
 )
-target_link_libraries(samowl ${OpenCV_LIBRARIES})
+target_link_libraries(samowl ${OpenCV_LIBRARIES} yaml-cpp)
 
 install(TARGETS samowl DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS

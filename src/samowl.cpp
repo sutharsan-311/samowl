@@ -6,6 +6,7 @@
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <yaml-cpp/yaml.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/synchronizer.h>
@@ -39,6 +40,7 @@ namespace
 {
 struct Options
 {
+  std::string config;
   std::string image;
   std::string depth_image;
   std::string rgb_topic;
@@ -63,6 +65,8 @@ struct Options
   std::string work_dir{"/tmp/samowl"};
   std::string daemon_socket{"/tmp/samowl/daemon.sock"};
   double depth_scale{0.001};
+  int daemon_startup_timeout_ms{30000};
+  int daemon_poll_interval_ms{100};
   bool continuous{false};
 };
 
@@ -75,6 +79,7 @@ void print_usage(const char * program)
     << "  Topic mode:\n"
     << "    " << program << " --rgb-topic <topic> --depth-topic <topic> --text <prompt> [options]\n\n"
     << "Options:\n"
+    << "  --config <path>             YAML config file (default: share/samowl/config/samowl.yaml)\n"
     << "  --output-mask <path>        Mask image to save (default: mask.png)\n"
     << "  --output-boundary <path>    Boundary image to save (default: boundary.png)\n"
     << "  --output-depth-mask <path>  Depth image masked by SAM output (default: masked_depth.png)\n"
@@ -128,6 +133,8 @@ bool parse_args(int argc, char ** argv, Options & options)
     if (arg == "--help" || arg == "-h") {
       print_usage(argv[0]);
       std::exit(EXIT_SUCCESS);
+    } else if (arg == "--config") {
+      if (!read_value(i, argc, argv, options.config)) return false;
     } else if (arg == "--image") {
       if (!read_value(i, argc, argv, options.image)) return false;
     } else if (arg == "--depth-image") {
@@ -236,13 +243,101 @@ std::string find_script(const char * env_var, const char * filename, const char 
 }
 
 // ---------------------------------------------------------------------------
-// Daemon lifecycle — fork once at startup; wait for the socket to appear.
+// YAML config loading
 // ---------------------------------------------------------------------------
 
-// Maximum milliseconds to wait for the daemon socket to become available.
-static constexpr int DAEMON_SOCKET_TIMEOUT_MS = 30000;
-// Poll interval while waiting.
-static constexpr int DAEMON_SOCKET_POLL_MS = 100;
+// Scan argv for --config before full argument parsing (avoids chicken-and-egg).
+std::string find_config(int argc, char ** argv)
+{
+  for (int i = 1; i < argc - 1; ++i) {
+    if (std::string(argv[i]) == "--config") {
+      return argv[i + 1];
+    }
+  }
+  try {
+    const fs::path installed =
+      fs::path(ament_index_cpp::get_package_share_directory("samowl")) / "config" / "samowl.yaml";
+    if (fs::exists(installed)) {
+      return installed.string();
+    }
+  } catch (const std::exception &) {}
+  if (fs::exists(SAMOWL_SOURCE_CONFIG_PATH)) {
+    return SAMOWL_SOURCE_CONFIG_PATH;
+  }
+  return "";
+}
+
+void load_config(Options & opts, const std::string & path)
+{
+  if (path.empty() || !fs::exists(path)) {
+    return;
+  }
+  try {
+    const YAML::Node cfg = YAML::LoadFile(path);
+
+    auto load_str = [](const YAML::Node & node, const char * key, std::string & target) {
+      if (node[key]) {
+        target = node[key].as<std::string>();
+      }
+    };
+
+    if (cfg["topics"]) {
+      const auto & t = cfg["topics"];
+      load_str(t, "rgb", opts.rgb_topic);
+      load_str(t, "depth", opts.depth_topic);
+      load_str(t, "camera_info", opts.camera_info_topic);
+    }
+    if (cfg["models"]) {
+      const auto & m = cfg["models"];
+      load_str(m, "owl", opts.owl_model);
+      load_str(m, "image_encoder", opts.image_encoder);
+      load_str(m, "mask_decoder", opts.mask_decoder);
+    }
+    if (cfg["detection"]) {
+      const auto & d = cfg["detection"];
+      load_str(d, "threshold", opts.threshold);
+      load_str(d, "mask_threshold", opts.mask_threshold);
+      load_str(d, "merge_radius", opts.merge_radius);
+    }
+    if (cfg["system"]) {
+      const auto & s = cfg["system"];
+      load_str(s, "python", opts.python);
+      load_str(s, "work_dir", opts.work_dir);
+      load_str(s, "map_frame", opts.map_frame);
+      load_str(s, "room_id", opts.room_id);
+    }
+    if (cfg["daemon"]) {
+      const auto & dm = cfg["daemon"];
+      load_str(dm, "socket", opts.daemon_socket);
+      if (dm["startup_timeout_ms"]) {
+        opts.daemon_startup_timeout_ms = dm["startup_timeout_ms"].as<int>();
+      }
+      if (dm["poll_interval_ms"]) {
+        opts.daemon_poll_interval_ms = dm["poll_interval_ms"].as<int>();
+      }
+    }
+    if (cfg["outputs"]) {
+      const auto & o = cfg["outputs"];
+      load_str(o, "mask", opts.output_mask);
+      load_str(o, "boundary", opts.output_boundary);
+      load_str(o, "depth_mask", opts.output_depth_mask);
+      load_str(o, "points", opts.output_points);
+      load_str(o, "hotspots", opts.output_hotspots);
+    }
+    if (cfg["depth"]) {
+      const auto & dep = cfg["depth"];
+      if (dep["scale"]) {
+        opts.depth_scale = dep["scale"].as<double>();
+      }
+    }
+  } catch (const YAML::Exception & e) {
+    std::cerr << "Warning: could not parse config " << path << ": " << e.what() << "\n";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daemon lifecycle — fork once at startup; wait for the socket to appear.
+// ---------------------------------------------------------------------------
 
 // Global daemon PID so we can reap it on exit.
 static pid_t g_daemon_pid = -1;
@@ -294,9 +389,9 @@ int start_daemon(const Options & options, const std::string & daemon_script)
   std::cerr << "Daemon PID " << pid << " — waiting for socket " << options.daemon_socket << "\n";
 
   // Poll until the socket file appears or the timeout expires.
-  const int max_polls = DAEMON_SOCKET_TIMEOUT_MS / DAEMON_SOCKET_POLL_MS;
+  const int max_polls = options.daemon_startup_timeout_ms / options.daemon_poll_interval_ms;
   for (int attempt = 0; attempt < max_polls; ++attempt) {
-    struct timespec ts{0, DAEMON_SOCKET_POLL_MS * 1000000L};
+    struct timespec ts{0, options.daemon_poll_interval_ms * 1000000L};
     nanosleep(&ts, nullptr);
     if (fs::exists(options.daemon_socket)) {
       std::cerr << "Daemon socket ready after " << (attempt + 1) * DAEMON_SOCKET_POLL_MS << " ms\n";
@@ -656,6 +751,11 @@ private:
 int main(int argc, char ** argv)
 {
   Options options;
+
+  // Precedence: CLI args > YAML config > hardcoded struct defaults.
+  const std::string config_path = find_config(argc, argv);
+  load_config(options, config_path);
+
   if (!parse_args(argc, argv, options)) {
     print_usage(argv[0]);
     return EXIT_FAILURE;
