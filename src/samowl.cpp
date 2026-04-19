@@ -73,9 +73,12 @@ struct Options
   std::string python{"python3"};
   std::string work_dir{"/tmp/samowl"};
   std::string daemon_socket{"/tmp/samowl/daemon.sock"};
+  std::string mode{"live"};           // "live" or "scan"
+  std::string output_dir{"/output"};  // scan mode: directory for final JSON output
   double depth_scale{0.001};
   int daemon_startup_timeout_ms{30000};
   int daemon_poll_interval_ms{100};
+  int scan_idle_timeout_ms{5000};  // scan mode: ms of silence → finalize
   bool continuous{false};
   bool debug{false};
 };
@@ -114,6 +117,9 @@ void print_usage(const char * program)
     << "  --work-dir <path>           Temporary topic frame directory (default: /tmp/samowl)\n"
     << "  --daemon-socket <path>      Unix socket for persistent Python daemon (default: /tmp/samowl/daemon.sock)\n"
     << "  --depth-scale <float>       Depth pixel to metres scale factor (default: 0.001)\n"
+    << "  --mode <live|scan>          Operating mode: 'live' streams topics; 'scan' processes every frame and saves JSON (default: live)\n"
+    << "  --output-dir <path>         Scan mode: directory for scene_graph.json and hotspots.json (default: /output)\n"
+    << "  --scan-idle-timeout <sec>   Scan mode: seconds of inactivity before finalization (default: 5)\n"
     << "  --continuous                Keep processing synchronized topic frames\n"
     << "  --owl-model <path>          Package-local OWL-ViT model directory\n"
     << "  --image-encoder <path>      SAM image encoder TensorRT engine\n"
@@ -207,6 +213,19 @@ bool parse_args(int argc, char ** argv, Options & options)
       if (!read_value(i, argc, argv, options.python)) return false;
     } else if (arg == "--daemon-socket") {
       if (!read_value(i, argc, argv, options.daemon_socket)) return false;
+    } else if (arg == "--mode") {
+      if (!read_value(i, argc, argv, options.mode)) return false;
+    } else if (arg == "--output-dir") {
+      if (!read_value(i, argc, argv, options.output_dir)) return false;
+    } else if (arg == "--scan-idle-timeout") {
+      std::string val;
+      if (!read_value(i, argc, argv, val)) return false;
+      try {
+        options.scan_idle_timeout_ms = std::stoi(val) * 1000;
+      } catch (...) {
+        std::cerr << "--scan-idle-timeout must be an integer number of seconds\n";
+        return false;
+      }
     } else if (arg == "--depth-scale") {
       std::string val;
       if (!read_value(i, argc, argv, val)) return false;
@@ -232,6 +251,10 @@ bool parse_args(int argc, char ** argv, Options & options)
   }
   if (!options.image.empty() && (!options.rgb_topic.empty() || !options.depth_topic.empty())) {
     std::cerr << "Use either file mode or topic mode, not both\n";
+    return false;
+  }
+  if (options.mode != "live" && options.mode != "scan") {
+    std::cerr << "--mode must be 'live' or 'scan'\n";
     return false;
   }
   if (options.image.empty() && options.camera_info_topic.empty()) {
@@ -331,8 +354,13 @@ void load_config(Options & opts, const std::string & path)
       load_str(s, "work_dir", opts.work_dir);
       load_str(s, "map_frame", opts.map_frame);
       load_str(s, "room_id", opts.room_id);
+      load_str(s, "mode", opts.mode);
+      load_str(s, "output_dir", opts.output_dir);
       if (s["debug"]) {
         opts.debug = s["debug"].as<bool>();
+      }
+      if (s["scan_idle_timeout_ms"]) {
+        opts.scan_idle_timeout_ms = s["scan_idle_timeout_ms"].as<int>();
       }
     }
     if (cfg["daemon"]) {

@@ -26,6 +26,9 @@ system:
   work_dir: "/tmp/samowl"
   map_frame: "map"
   room_id: "simulation_room"
+  mode: "live"                 # "live" or "scan"
+  output_dir: "/output"        # scan mode: directory for final JSON output
+  scan_idle_timeout_ms: 5000   # scan mode: ms of silence before finalization
 
 # Daemon process settings
 daemon:
