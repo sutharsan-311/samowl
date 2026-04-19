@@ -2,6 +2,7 @@
 """Scene query node — Step 6.5 Step 1: subscribe to /scene_graph and maintain local state."""
 
 import json
+import math
 
 import rclpy
 from rclpy.node import Node
@@ -55,9 +56,33 @@ class SceneQueryNode(Node):
                     self.get_logger().debug(
                         f'find_near({labels[i]!r}, {labels[j]!r}) → {pairs}')
 
+        # Debug: closest node per label.
+        for label in labels:
+            result = self.closest(label)
+            if result:
+                self.get_logger().debug(
+                    f'closest({label!r}) → {result["id"]} ({result["distance"]:.2f} m)')
+
     # ------------------------------------------------------------------ #
     #  Queries                                                             #
     # ------------------------------------------------------------------ #
+
+    def closest(self, label: str):
+        """Return the node with matching label closest to the map origin, or None."""
+        candidates = [n for n in self._nodes if n.get('label') == label]
+        if not candidates:
+            return None
+
+        def _dist(node):
+            x, y, z = node['position']
+            return math.sqrt(x * x + y * y + z * z)
+
+        best = min(candidates, key=_dist)
+        return {
+            'id':       best['id'],
+            'position': best['position'],
+            'distance': _dist(best),
+        }
 
     def find_near(self, label_a: str, label_b: str) -> list:
         """Return pairs of node IDs where one has label_a, the other label_b, and a near edge exists."""
