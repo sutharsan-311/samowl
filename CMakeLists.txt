@@ -16,6 +16,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(nlohmann_json 3 REQUIRED)
 
 add_executable(samowl src/samowl.cpp)
 target_compile_features(samowl PRIVATE cxx_std_17)
@@ -37,7 +38,7 @@ ament_target_dependencies(
   tf2
   tf2_ros
 )
-target_link_libraries(samowl ${OpenCV_LIBRARIES} yaml-cpp)
+target_link_libraries(samowl ${OpenCV_LIBRARIES} yaml-cpp nlohmann_json::nlohmann_json)
 
 install(TARGETS samowl DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS
