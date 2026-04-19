@@ -777,7 +777,7 @@ public:
     sensor_qos.best_effort();
     points_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("/samowl/points", sensor_qos);
     objects_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>("/samowl/objects", sensor_qos);
-    detections_pub_ = create_publisher<std_msgs::msg::String>("/samowl/detections", sensor_qos);
+    detections_pub_ = create_publisher<std_msgs::msg::String>("/samowl/detections", rclcpp::QoS(10));
 
     RCLCPP_INFO(get_logger(), "Waiting for RGB '%s', depth '%s', camera info '%s', TF to '%s'",
       options_.rgb_topic.c_str(),
