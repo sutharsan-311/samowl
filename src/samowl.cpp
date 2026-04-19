@@ -832,9 +832,11 @@ private:
         if (!result.output_points.empty()) {
           pcl::PointCloud<pcl::PointXYZ> cloud;
           if (load_stable_pcd(result.output_points, cloud)) {
+            float cx, cy, cz;
+            compute_centroid(cloud, cx, cy, cz);
             publish_points(cloud, rgb_msg->header.stamp);
-            publish_objects(cloud, options_.text, result.score, rgb_msg->header.stamp);
-            publish_detections(cloud, options_.text, result.score, rgb_msg->header.stamp);
+            publish_objects(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
+            publish_detections(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
           }
           std::error_code ec;
           fs::remove(result.output_points, ec);
@@ -860,6 +862,16 @@ private:
     if (!options_.continuous) {
       rclcpp::shutdown();
     }
+  }
+
+  static void compute_centroid(
+    const pcl::PointCloud<pcl::PointXYZ> & cloud,
+    float & cx, float & cy, float & cz)
+  {
+    cx = cy = cz = 0.0f;
+    for (const auto & pt : cloud) { cx += pt.x; cy += pt.y; cz += pt.z; }
+    const float n = static_cast<float>(cloud.size());
+    cx /= n; cy /= n; cz /= n;
   }
 
   bool load_stable_pcd(
@@ -911,18 +923,11 @@ private:
   }
 
   void publish_objects(
-    const pcl::PointCloud<pcl::PointXYZ> & cloud,
+    float cx, float cy, float cz,
     const std::string & label,
     float score,
     const builtin_interfaces::msg::Time & stamp)
   {
-    float cx = 0.0f, cy = 0.0f, cz = 0.0f;
-    for (const auto & pt : cloud) {
-      cx += pt.x; cy += pt.y; cz += pt.z;
-    }
-    const float n = static_cast<float>(cloud.size());
-    cx /= n; cy /= n; cz /= n;
-
     visualization_msgs::msg::MarkerArray array;
 
     // Clear stale markers from previous frames before adding new ones.
@@ -972,21 +977,17 @@ private:
   }
 
   void publish_detections(
-    const pcl::PointCloud<pcl::PointXYZ> & cloud,
+    float cx, float cy, float cz,
     const std::string & label,
     float score,
     const builtin_interfaces::msg::Time & stamp)
   {
-    float cx = 0.0f, cy = 0.0f, cz = 0.0f;
-    for (const auto & pt : cloud) {
-      cx += pt.x; cy += pt.y; cz += pt.z;
-    }
-    const float n = static_cast<float>(cloud.size());
-    cx /= n; cy /= n; cz /= n;
+    const std::string id = label + "_" + std::to_string(detection_counter_++);
+    const double ts = static_cast<double>(stamp.sec) + stamp.nanosec * 1e-9;
 
     // Build JSON manually — same pattern as build_request_json, no extra deps.
-    const double ts = static_cast<double>(stamp.sec) + stamp.nanosec * 1e-9;
     std::string json = "{";
+    json += "\"id\":\"" + id + "\",";
     json += "\"frame_id\":\"" + options_.map_frame + "\",";
     json += "\"stamp\":" + std::to_string(ts) + ",";
     json += "\"label\":\"" + label + "\",";
@@ -1013,6 +1014,7 @@ private:
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr objects_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr detections_pub_;
   rclcpp::Time last_pcd_warn_{0, 0, RCL_ROS_TIME};
+  int detection_counter_{0};
   std::atomic_bool processing_{false};
   int last_status_{EXIT_SUCCESS};
 };
