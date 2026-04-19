@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scene graph node — Step 6.2: state management and spatial edge construction."""
+"""Scene graph node — Step 6.2.1: hysteresis matching to prevent duplicate nodes."""
 
 import json
 import math
@@ -10,9 +10,12 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 
-MATCH_THRESHOLD = 0.5   # metres — same label within this radius → same node
-NEAR_THRESHOLD  = 1.5   # metres — nodes within this radius get a "near" edge
-NODE_TIMEOUT    = 3.0   # seconds — nodes unseen longer than this are pruned
+# Hysteresis pair: existing nodes use a looser radius (harder to lose), new
+# nodes require a stricter radius (harder to create a duplicate).
+MATCH_THRESHOLD  = 0.6  # metres — update existing node if closest is within this
+CREATE_THRESHOLD = 0.5  # metres — create a new node only if no existing within this
+NEAR_THRESHOLD   = 1.5  # metres — nodes within this radius get a "near" edge
+NODE_TIMEOUT     = 3.0  # seconds — nodes unseen longer than this are pruned
 
 
 def _dist(a, b) -> float:
@@ -78,11 +81,10 @@ class SceneGraphNode(Node):
     #  State management                                                    #
     # ------------------------------------------------------------------ #
 
-    def _upsert_node(self, label: str, position: list) -> None:
-        """Find the nearest matching node or create a new one."""
+    def _find_best_match(self, label: str, position: list):
+        """Return (node_id, distance) of the closest same-label node, or (None, inf)."""
         best_id   = None
         best_dist = float('inf')
-
         for node_id, node in self.nodes.items():
             if node['label'] != label:
                 continue
@@ -90,14 +92,21 @@ class SceneGraphNode(Node):
             if d < best_dist:
                 best_dist = d
                 best_id   = node_id
+        return best_id, best_dist
 
+    def _upsert_node(self, label: str, position: list) -> None:
+        best_id, best_dist = self._find_best_match(label, position)
         now = time.time()
 
+        # Hysteresis: match if an existing node is within MATCH_THRESHOLD (0.6 m).
+        # Only create a new node if the closest candidate is beyond CREATE_THRESHOLD
+        # (0.5 m) — the gap prevents oscillation at the boundary.
         if best_id is not None and best_dist < MATCH_THRESHOLD:
             node = self.nodes[best_id]
             node['position']  = _update_position(node['position'], position)
             node['last_seen'] = now
-        else:
+            print(f'[GRAPH] Matched {label} → {best_id} ({best_dist:.2f} m)')
+        elif best_dist >= CREATE_THRESHOLD:
             new_id = f'{label}_{self._label_counters[label]}'
             self._label_counters[label] += 1
             self.nodes[new_id] = {
@@ -106,6 +115,7 @@ class SceneGraphNode(Node):
                 'position':  list(position),
                 'last_seen': now,
             }
+            print(f'[GRAPH] Created new node → {new_id}')
 
     def _cleanup_nodes(self) -> None:
         now     = time.time()
