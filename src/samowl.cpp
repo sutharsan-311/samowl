@@ -922,6 +922,14 @@ private:
 
     visualization_msgs::msg::MarkerArray array;
 
+    // Clear stale markers from previous frames before adding new ones.
+    visualization_msgs::msg::Marker clear;
+    clear.action = visualization_msgs::msg::Marker::DELETEALL;
+    array.markers.push_back(clear);
+
+    const float c = std::clamp(score, 0.0f, 1.0f);
+    const auto lifetime = rclcpp::Duration::from_seconds(0.3);
+
     visualization_msgs::msg::Marker sphere;
     sphere.header.frame_id = options_.map_frame;
     sphere.header.stamp = stamp;
@@ -934,9 +942,10 @@ private:
     sphere.pose.position.z = cz;
     sphere.pose.orientation.w = 1.0;
     sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2;
-    sphere.color.g = 1.0f;
-    sphere.color.a = 0.8f;
-    sphere.lifetime = rclcpp::Duration::from_seconds(1.0);
+    sphere.color.r = 1.0f - c;
+    sphere.color.g = c;
+    sphere.color.a = 1.0f;
+    sphere.lifetime = lifetime;
     array.markers.push_back(sphere);
 
     visualization_msgs::msg::Marker text;
@@ -947,13 +956,13 @@ private:
     text.action = visualization_msgs::msg::Marker::ADD;
     text.pose.position.x = cx;
     text.pose.position.y = cy;
-    text.pose.position.z = cz + 0.15f;
+    text.pose.position.z = cz + 0.25f;
     text.pose.orientation.w = 1.0;
-    text.scale.z = 0.12;
+    text.scale.z = 0.15;
     text.color.r = text.color.g = text.color.b = 1.0f;
     text.color.a = 1.0f;
     text.text = label + " (" + std::to_string(static_cast<int>(score * 100.0f)) + "%)";
-    text.lifetime = rclcpp::Duration::from_seconds(1.0);
+    text.lifetime = lifetime;
     array.markers.push_back(text);
 
     objects_pub_->publish(array);
