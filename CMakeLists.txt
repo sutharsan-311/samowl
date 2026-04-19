@@ -44,6 +44,7 @@ install(PROGRAMS
   DESTINATION share/${PROJECT_NAME}/scripts
 )
 install(DIRECTORY data DESTINATION share/${PROJECT_NAME})
+install(FILES config/samowl.yaml DESTINATION share/${PROJECT_NAME}/config)
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)

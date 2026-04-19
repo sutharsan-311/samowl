@@ -1,0 +1,46 @@
+# samowl configuration
+# All values here are defaults. CLI arguments override them at runtime.
+
+# ROS2 topic names (required in topic mode; set via CLI or launch file)
+topics:
+  rgb: ""
+  depth: ""
+  camera_info: ""  # derived from rgb topic if empty
+
+# ML model paths (relative to package share directory or absolute)
+models:
+  owl: "data/owlvit-base-patch32"
+  image_encoder: "data/resnet18_image_encoder.engine"
+  mask_decoder: "data/mobile_sam_mask_decoder.engine"
+
+# Detection and segmentation parameters
+detection:
+  threshold: 0.1        # OWL-ViT score threshold
+  mask_threshold: 0.0   # SAM logits threshold
+  merge_radius: 0.10    # 3D radius in metres for merging same-label hotspots
+  max_points: 80000     # Maximum masked points written to PCD
+
+# System-level settings
+system:
+  python: "python3"
+  work_dir: "/tmp/samowl"
+  map_frame: "map"
+  room_id: "simulation_room"
+
+# Daemon process settings
+daemon:
+  socket: "/tmp/samowl/daemon.sock"
+  startup_timeout_ms: 30000
+  poll_interval_ms: 100
+
+# Default output file names
+outputs:
+  mask: "mask.png"
+  boundary: "boundary.png"
+  depth_mask: "masked_depth.png"
+  points: "object_points_map.pcd"
+  hotspots: "hotspots.json"
+
+# Depth sensor settings
+depth:
+  scale: 0.001  # Depth pixel to metres conversion factor
