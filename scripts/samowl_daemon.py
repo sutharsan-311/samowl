@@ -57,6 +57,12 @@ import sys
 import types
 from pathlib import Path
 
+try:
+    import yaml as _yaml
+    _YAML_AVAILABLE = True
+except ImportError:
+    _YAML_AVAILABLE = False
+
 from PIL import Image
 
 # ---------------------------------------------------------------------------
@@ -302,39 +308,69 @@ def serve(socket_path: str, bundle: ModelBundle) -> None:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-def parse_args() -> argparse.Namespace:
+def load_config(path: str) -> dict:
+    """Load YAML config file, returning empty dict on any error or if YAML unavailable."""
+    if not path:
+        return {}
+    if not _YAML_AVAILABLE:
+        log.warning("PyYAML not installed — skipping config file %s", path)
+        return {}
+    try:
+        with open(path) as f:
+            return _yaml.safe_load(f) or {}
+    except Exception as exc:
+        log.warning("Could not load config %s: %s", path, exc)
+        return {}
+
+
+def parse_args(config: dict) -> argparse.Namespace:
+    models = config.get("models", {})
+    detection = config.get("detection", {})
+    daemon_cfg = config.get("daemon", {})
+
     parser = argparse.ArgumentParser(description="samowl persistent inference daemon")
     parser.add_argument(
+        "--config",
+        default="",
+        help="Path to YAML config file (samowl.yaml)",
+    )
+    parser.add_argument(
         "--socket",
-        default="/tmp/samowl/daemon.sock",
-        help="Unix socket path to listen on (default: /tmp/samowl/daemon.sock)",
+        default=daemon_cfg.get("socket", "/tmp/samowl/daemon.sock"),
+        help="Unix socket path to listen on",
     )
     parser.add_argument(
         "--owl-model",
-        default="data/owlvit-base-patch32",
-        help="OWL-ViT model directory (default: data/owlvit-base-patch32)",
+        default=models.get("owl", "data/owlvit-base-patch32"),
+        help="OWL-ViT model directory",
     )
     parser.add_argument(
         "--image-encoder",
-        default="data/resnet18_image_encoder.engine",
+        default=models.get("image_encoder", "data/resnet18_image_encoder.engine"),
         help="SAM image encoder TensorRT engine",
     )
     parser.add_argument(
         "--mask-decoder",
-        default="data/mobile_sam_mask_decoder.engine",
+        default=models.get("mask_decoder", "data/mobile_sam_mask_decoder.engine"),
         help="SAM mask decoder TensorRT engine",
     )
     parser.add_argument(
         "--threshold",
         type=float,
-        default=0.1,
-        help="Default OWL detection threshold; overridden per-request (default: 0.1)",
+        default=detection.get("threshold", 0.1),
+        help="Default OWL detection threshold; overridden per-request",
     )
     return parser.parse_args()
 
 
 def main() -> None:
-    args = parse_args()
+    # Phase 1: extract --config path before full parse so YAML can back defaults.
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--config", default="")
+    pre_args, _ = pre_parser.parse_known_args()
+
+    config = load_config(pre_args.config)
+    args = parse_args(config)
 
     owl_model = str(resolve_existing_path(args.owl_model, "OWL model directory"))
     image_encoder = str(resolve_existing_path(args.image_encoder, "SAM image encoder engine"))
