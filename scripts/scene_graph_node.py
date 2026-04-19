@@ -18,6 +18,7 @@ MATCH_THRESHOLD  = 0.6  # metres — update existing node if closest is within t
 CREATE_THRESHOLD = 0.5  # metres — create a new node only if no existing within this
 NEAR_THRESHOLD   = 1.5  # metres — nodes within this radius get a "near" edge
 NODE_TIMEOUT     = 3.0  # seconds — nodes unseen longer than this are pruned
+MAX_SPEED        = 5.0  # m/s   — clamp; faster observations are sensor noise
 
 
 def _dist(a, b) -> float:
@@ -38,7 +39,7 @@ class SceneGraphNode(Node):
     def __init__(self):
         super().__init__('scene_graph_node')
 
-        # { stable_id: {"id", "label", "position", "last_seen"} }
+        # { stable_id: {"id", "label", "position", "velocity", "last_seen"} }
         self.nodes: dict = {}
         # [{"source", "target", "relation"}]
         self.edges: list = []
@@ -108,9 +109,21 @@ class SceneGraphNode(Node):
         # (0.5 m) — the gap prevents oscillation at the boundary.
         if best_id is not None and best_dist < MATCH_THRESHOLD:
             node = self.nodes[best_id]
+            dt   = now - node['last_seen']
+
+            if dt > 0:
+                raw_vel = [(p - q) / dt
+                           for p, q in zip(position, node['position'])]
+                speed = math.sqrt(sum(v ** 2 for v in raw_vel))
+                if speed <= MAX_SPEED:
+                    old_vel = node['velocity']
+                    node['velocity'] = [0.7 * nv + 0.3 * ov
+                                        for nv, ov in zip(raw_vel, old_vel)]
+                    print(f'[GRAPH] Matched {label} → {best_id} '
+                          f'({best_dist:.2f} m) speed={speed:.2f} m/s')
+
             node['position']  = _update_position(node['position'], position)
             node['last_seen'] = now
-            print(f'[GRAPH] Matched {label} → {best_id} ({best_dist:.2f} m)')
         elif best_dist >= CREATE_THRESHOLD:
             new_id = f'{label}_{self._label_counters[label]}'
             self._label_counters[label] += 1
@@ -118,6 +131,7 @@ class SceneGraphNode(Node):
                 'id':        new_id,
                 'label':     label,
                 'position':  list(position),
+                'velocity':  [0.0, 0.0, 0.0],
                 'last_seen': now,
             }
             print(f'[GRAPH] Created new node → {new_id}')
