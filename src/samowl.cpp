@@ -22,6 +22,7 @@
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
@@ -771,9 +772,10 @@ public:
       SyncPolicy(10), rgb_sub_, depth_sub_, camera_info_sub_);
     sync_->registerCallback(&TopicRunner::callback, this);
 
-    rclcpp::QoS points_qos{1};
-    points_qos.best_effort();
-    points_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("/samowl/points", points_qos);
+    rclcpp::QoS sensor_qos{1};
+    sensor_qos.best_effort();
+    points_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("/samowl/points", sensor_qos);
+    objects_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>("/samowl/objects", sensor_qos);
 
     RCLCPP_INFO(get_logger(), "Waiting for RGB '%s', depth '%s', camera info '%s', TF to '%s'",
       options_.rgb_topic.c_str(),
@@ -826,7 +828,13 @@ private:
         RCLCPP_ERROR(get_logger(), "OWL + SAM pipeline failed with status %d", last_status_);
       } else {
         if (!result.output_points.empty()) {
-          publish_points(result.output_points, rgb_msg->header.stamp);
+          pcl::PointCloud<pcl::PointXYZ> cloud;
+          if (load_stable_pcd(result.output_points, cloud)) {
+            publish_points(cloud, rgb_msg->header.stamp);
+            publish_objects(cloud, options_.text, result.score, rgb_msg->header.stamp);
+          }
+          std::error_code ec;
+          fs::remove(result.output_points, ec);
         }
         RCLCPP_INFO(get_logger(), "Saved mask to '%s'", options_.output_mask.c_str());
         // Clean up per-frame scratch files so /tmp/samowl does not grow
@@ -851,50 +859,104 @@ private:
     }
   }
 
-  void publish_points(
+  bool load_stable_pcd(
     const std::string & pcd_path,
-    const builtin_interfaces::msg::Time & stamp)
+    pcl::PointCloud<pcl::PointXYZ> & cloud)
   {
     std::error_code ec;
-
-    // Guard: file must exist and be stable (daemon may still be writing).
     const auto sz1 = fs::file_size(pcd_path, ec);
     if (ec || sz1 == 0) {
       RCLCPP_WARN(get_logger(), "PCD not ready: %s", pcd_path.c_str());
-      return;
+      return false;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
     const auto sz2 = fs::file_size(pcd_path, ec);
     if (ec || sz1 != sz2) {
       RCLCPP_WARN(get_logger(), "PCD still changing, skip: %s", pcd_path.c_str());
-      return;
+      return false;
     }
-
-    pcl::PointCloud<pcl::PointXYZ> cloud;
     if (pcl::io::loadPCDFile<pcl::PointXYZ>(pcd_path, cloud) < 0) {
-      RCLCPP_WARN(get_logger(), "Failed to load PCD: %s", pcd_path.c_str());
-      return;
+      if ((now() - last_pcd_warn_).seconds() > 2.0) {
+        RCLCPP_WARN(get_logger(), "Failed to load PCD: %s", pcd_path.c_str());
+        last_pcd_warn_ = now();
+      }
+      return false;
     }
-
+    cloud.is_dense = false;
     if (cloud.empty()) {
-      RCLCPP_DEBUG(get_logger(), "Empty cloud, skip publish: %s", pcd_path.c_str());
-      return;
+      RCLCPP_DEBUG(get_logger(), "Empty cloud: %s", pcd_path.c_str());
+      return false;
     }
+    return true;
+  }
 
+  void publish_points(
+    const pcl::PointCloud<pcl::PointXYZ> & cloud,
+    const builtin_interfaces::msg::Time & stamp)
+  {
     sensor_msgs::msg::PointCloud2 msg;
     pcl::toROSMsg(cloud, msg);
     msg.is_dense = false;
     msg.header.frame_id = options_.map_frame;
     msg.header.stamp = stamp;
     points_pub_->publish(msg);
-
     if (options_.debug) {
-      RCLCPP_INFO(get_logger(), "Published %zu points from %s",
-        cloud.size(), pcd_path.c_str());
+      RCLCPP_DEBUG(get_logger(), "Publishing cloud @ stamp=%.3f frame=%s",
+        rclcpp::Time(stamp).seconds(), options_.map_frame.c_str());
+      RCLCPP_INFO(get_logger(), "Published %zu points", cloud.size());
     }
+  }
 
-    // Remove PCD after publish to prevent /tmp/samowl growing indefinitely.
-    fs::remove(pcd_path, ec);
+  void publish_objects(
+    const pcl::PointCloud<pcl::PointXYZ> & cloud,
+    const std::string & label,
+    float score,
+    const builtin_interfaces::msg::Time & stamp)
+  {
+    float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+    for (const auto & pt : cloud) {
+      cx += pt.x; cy += pt.y; cz += pt.z;
+    }
+    const float n = static_cast<float>(cloud.size());
+    cx /= n; cy /= n; cz /= n;
+
+    visualization_msgs::msg::MarkerArray array;
+
+    visualization_msgs::msg::Marker sphere;
+    sphere.header.frame_id = options_.map_frame;
+    sphere.header.stamp = stamp;
+    sphere.ns = "samowl_objects";
+    sphere.id = 0;
+    sphere.type = visualization_msgs::msg::Marker::SPHERE;
+    sphere.action = visualization_msgs::msg::Marker::ADD;
+    sphere.pose.position.x = cx;
+    sphere.pose.position.y = cy;
+    sphere.pose.position.z = cz;
+    sphere.pose.orientation.w = 1.0;
+    sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2;
+    sphere.color.g = 1.0f;
+    sphere.color.a = 0.8f;
+    sphere.lifetime = rclcpp::Duration::from_seconds(1.0);
+    array.markers.push_back(sphere);
+
+    visualization_msgs::msg::Marker text;
+    text.header = sphere.header;
+    text.ns = "samowl_labels";
+    text.id = 0;
+    text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    text.action = visualization_msgs::msg::Marker::ADD;
+    text.pose.position.x = cx;
+    text.pose.position.y = cy;
+    text.pose.position.z = cz + 0.15f;
+    text.pose.orientation.w = 1.0;
+    text.scale.z = 0.12;
+    text.color.r = text.color.g = text.color.b = 1.0f;
+    text.color.a = 1.0f;
+    text.text = label + " (" + std::to_string(static_cast<int>(score * 100.0f)) + "%)";
+    text.lifetime = rclcpp::Duration::from_seconds(1.0);
+    array.markers.push_back(text);
+
+    objects_pub_->publish(array);
   }
 
   Options options_;
@@ -906,6 +968,8 @@ private:
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr points_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr objects_pub_;
+  rclcpp::Time last_pcd_warn_{0, 0, RCL_ROS_TIME};
   std::atomic_bool processing_{false};
   int last_status_{EXIT_SUCCESS};
 };
