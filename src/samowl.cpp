@@ -18,6 +18,10 @@
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <tf2/time.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
@@ -608,7 +612,11 @@ bool parse_response(const std::string & s, ParsedResult & out)
 }
 
 // Returns 0 if the daemon reports success, non-zero otherwise.
-int run_python(const Options & options, const std::string & /*script_unused*/)
+// If result_out is non-null it is populated with the parsed response on success.
+int run_python(
+  const Options & options,
+  const std::string & /*script_unused*/,
+  ParsedResult * result_out = nullptr)
 {
   const std::string request = build_request_json(options);
   std::string response;
@@ -648,6 +656,9 @@ int run_python(const Options & options, const std::string & /*script_unused*/)
     }
   }
 
+  if (result_out) {
+    *result_out = result;
+  }
   return 0;
 }
 
@@ -758,6 +769,8 @@ public:
       SyncPolicy(10), rgb_sub_, depth_sub_, camera_info_sub_);
     sync_->registerCallback(&TopicRunner::callback, this);
 
+    points_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("/samowl/points", 10);
+
     RCLCPP_INFO(get_logger(), "Waiting for RGB '%s', depth '%s', camera info '%s', TF to '%s'",
       options_.rgb_topic.c_str(),
       options_.depth_topic.c_str(),
@@ -803,10 +816,14 @@ private:
       run_options.camera_model = camera_model_path.string();
 
       RCLCPP_INFO(get_logger(), "Running OWL + SAM on synchronized RGB/depth frames");
-      last_status_ = run_python(run_options, script_);
+      ParsedResult result;
+      last_status_ = run_python(run_options, script_, &result);
       if (last_status_ != EXIT_SUCCESS) {
         RCLCPP_ERROR(get_logger(), "OWL + SAM pipeline failed with status %d", last_status_);
       } else {
+        if (!result.output_points.empty()) {
+          publish_points(result.output_points, rgb_msg->header.stamp);
+        }
         RCLCPP_INFO(get_logger(), "Saved mask to '%s'", options_.output_mask.c_str());
         // Clean up per-frame scratch files so /tmp/samowl does not grow
         // indefinitely.  Errors are logged but do not affect last_status_.
@@ -830,6 +847,30 @@ private:
     }
   }
 
+  void publish_points(
+    const std::string & pcd_path,
+    const builtin_interfaces::msg::Time & stamp)
+  {
+    if (!fs::exists(pcd_path)) {
+      RCLCPP_WARN(get_logger(), "PCD file not found: %s", pcd_path.c_str());
+      return;
+    }
+    pcl::PointCloud<pcl::PointXYZ> cloud;
+    if (pcl::io::loadPCDFile<pcl::PointXYZ>(pcd_path, cloud) < 0) {
+      RCLCPP_WARN(get_logger(), "Failed to load PCD: %s", pcd_path.c_str());
+      return;
+    }
+    sensor_msgs::msg::PointCloud2 msg;
+    pcl::toROSMsg(cloud, msg);
+    msg.header.frame_id = options_.map_frame;
+    msg.header.stamp = stamp;
+    points_pub_->publish(msg);
+    if (options_.debug) {
+      RCLCPP_INFO(get_logger(), "Published %zu points from %s",
+        cloud.size(), pcd_path.c_str());
+    }
+  }
+
   Options options_;
   std::string script_;
   message_filters::Subscriber<Image> rgb_sub_;
@@ -838,6 +879,7 @@ private:
   std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync_;
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr points_pub_;
   std::atomic_bool processing_{false};
   int last_status_{EXIT_SUCCESS};
 };

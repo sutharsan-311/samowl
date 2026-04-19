@@ -17,6 +17,8 @@ find_package(geometry_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(nlohmann_json 3 REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common io)
+find_package(pcl_conversions REQUIRED)
 
 add_executable(samowl src/samowl.cpp)
 target_compile_features(samowl PRIVATE cxx_std_17)
@@ -33,12 +35,14 @@ ament_target_dependencies(
   cv_bridge
   geometry_msgs
   message_filters
+  pcl_conversions
   rclcpp
   sensor_msgs
   tf2
   tf2_ros
 )
-target_link_libraries(samowl ${OpenCV_LIBRARIES} yaml-cpp nlohmann_json::nlohmann_json)
+target_include_directories(samowl PRIVATE ${PCL_INCLUDE_DIRS})
+target_link_libraries(samowl ${OpenCV_LIBRARIES} yaml-cpp nlohmann_json::nlohmann_json ${PCL_LIBRARIES})
 
 install(TARGETS samowl DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS
