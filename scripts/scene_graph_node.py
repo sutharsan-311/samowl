@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scene graph node — Step 6.2.1: hysteresis matching to prevent duplicate nodes."""
+"""Scene graph node — Step 6.3: RViz MarkerArray visualization."""
 
 import json
 import math
@@ -8,7 +8,9 @@ from collections import defaultdict
 
 import rclpy
 from rclpy.node import Node
+from geometry_msgs.msg import Point
 from std_msgs.msg import String
+from visualization_msgs.msg import Marker, MarkerArray
 
 # Hysteresis pair: existing nodes use a looser radius (harder to lose), new
 # nodes require a stricter radius (harder to create a duplicate).
@@ -50,7 +52,9 @@ class SceneGraphNode(Node):
             self._on_detection,
             10)
 
-        self._pub = self.create_publisher(String, '/scene_graph', 10)
+        self._pub         = self.create_publisher(String, '/scene_graph', 10)
+        self._marker_pub  = self.create_publisher(
+            MarkerArray, '/scene_graph_markers', 10)
 
         self.get_logger().info('Scene graph node ready')
 
@@ -74,6 +78,7 @@ class SceneGraphNode(Node):
         self._cleanup_nodes()
         self._rebuild_edges()
         self._publish_graph()
+        self._publish_markers()
 
         print(f'[GRAPH] nodes={len(self.nodes)} edges={len(self.edges)}')
 
@@ -153,6 +158,86 @@ class SceneGraphNode(Node):
             'edges': self.edges,
         }
         self._pub.publish(String(data=json.dumps(payload)))
+
+    def _publish_markers(self) -> None:
+        now = self.get_clock().now().to_msg()
+        array = MarkerArray()
+
+        # Clear all previous markers atomically.
+        delete_all = Marker()
+        delete_all.action = Marker.DELETEALL
+        array.markers.append(delete_all)
+
+        node_list = list(self.nodes.values())
+        node_index = {n['id']: i for i, n in enumerate(node_list)}
+
+        for i, node in enumerate(node_list):
+            px, py, pz = node['position']
+
+            # Blue sphere at the object centroid.
+            sphere = Marker()
+            sphere.header.frame_id = 'map'
+            sphere.header.stamp    = now
+            sphere.ns              = 'sg_nodes'
+            sphere.id              = i
+            sphere.type            = Marker.SPHERE
+            sphere.action          = Marker.ADD
+            sphere.pose.position.x = px
+            sphere.pose.position.y = py
+            sphere.pose.position.z = pz
+            sphere.pose.orientation.w = 1.0
+            sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2
+            sphere.color.r = 0.2
+            sphere.color.g = 0.4
+            sphere.color.b = 1.0
+            sphere.color.a = 0.85
+            array.markers.append(sphere)
+
+            # Label text floating above the sphere.
+            label = Marker()
+            label.header.frame_id = 'map'
+            label.header.stamp    = now
+            label.ns              = 'sg_labels'
+            label.id              = i
+            label.type            = Marker.TEXT_VIEW_FACING
+            label.action          = Marker.ADD
+            label.pose.position.x = px
+            label.pose.position.y = py
+            label.pose.position.z = pz + 0.3
+            label.pose.orientation.w = 1.0
+            label.scale.z         = 0.12
+            label.color.r = label.color.g = label.color.b = 1.0
+            label.color.a = 1.0
+            label.text            = node['id']
+            array.markers.append(label)
+
+        # Yellow LINE_LIST connecting "near" node pairs.
+        if self.edges:
+            lines = Marker()
+            lines.header.frame_id = 'map'
+            lines.header.stamp    = now
+            lines.ns              = 'sg_edges'
+            lines.id              = 0
+            lines.type            = Marker.LINE_LIST
+            lines.action          = Marker.ADD
+            lines.scale.x         = 0.03
+            lines.color.r         = 1.0
+            lines.color.g         = 0.85
+            lines.color.b         = 0.0
+            lines.color.a         = 0.8
+            lines.pose.orientation.w = 1.0
+
+            for edge in self.edges:
+                src = self.nodes[edge['source']]['position']
+                tgt = self.nodes[edge['target']]['position']
+                p0, p1 = Point(), Point()
+                p0.x, p0.y, p0.z = src
+                p1.x, p1.y, p1.z = tgt
+                lines.points.extend([p0, p1])
+
+            array.markers.append(lines)
+
+        self._marker_pub.publish(array)
 
 
 def main(args=None):
