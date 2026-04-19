@@ -794,6 +794,14 @@ public:
     objects_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>("/samowl/objects", sensor_qos);
     detections_pub_ = create_publisher<std_msgs::msg::String>("/samowl/detections", rclcpp::QoS(10));
 
+    if (options_.mode == "scan") {
+      idle_timer_ = create_wall_timer(
+        std::chrono::milliseconds(options_.scan_idle_timeout_ms),
+        std::bind(&TopicRunner::finalize_and_shutdown, this));
+      RCLCPP_INFO(get_logger(), "[scan] Idle timeout: %d ms → will finalize when bag ends",
+        options_.scan_idle_timeout_ms);
+    }
+
     RCLCPP_INFO(get_logger(), "Waiting for RGB '%s', depth '%s', camera info '%s', TF to '%s'",
       options_.rgb_topic.c_str(),
       options_.depth_topic.c_str(),
@@ -890,6 +898,136 @@ private:
       reset_idle_timer();
     } else if (!options_.continuous) {
       rclcpp::shutdown();
+    }
+  }
+
+  void reset_idle_timer()
+  {
+    if (idle_timer_) {
+      idle_timer_->reset();
+    }
+  }
+
+  void finalize_and_shutdown()
+  {
+    if (finalized_.exchange(true)) {
+      return;
+    }
+    if (idle_timer_) {
+      idle_timer_->cancel();
+    }
+    RCLCPP_INFO(get_logger(), "[scan] Finalizing — %d frames processed, %zu detections",
+      frame_count_, scan_detections_.size());
+    save_scan_outputs();
+    rclcpp::shutdown();
+  }
+
+  void save_scan_outputs()
+  {
+    using json = nlohmann::json;
+
+    const fs::path out_dir{options_.output_dir};
+    std::error_code ec;
+    fs::create_directories(out_dir, ec);
+    if (ec) {
+      RCLCPP_ERROR(get_logger(), "[scan] Cannot create output dir %s: %s",
+        out_dir.string().c_str(), ec.message().c_str());
+      return;
+    }
+
+    // Copy hotspots.json accumulated by the daemon (already deduplicated per-frame).
+    if (!options_.output_hotspots.empty() && fs::exists(options_.output_hotspots)) {
+      fs::copy_file(options_.output_hotspots, out_dir / "hotspots.json",
+        fs::copy_options::overwrite_existing, ec);
+      if (!ec) {
+        RCLCPP_INFO(get_logger(), "[scan] Saved hotspots.json");
+      } else {
+        RCLCPP_WARN(get_logger(), "[scan] Could not copy hotspots.json: %s",
+          ec.message().c_str());
+      }
+    }
+
+    // Deduplicate scan_detections_ into nodes using merge_radius.
+    const float merge_r = [&]() -> float {
+      try { return std::stof(options_.merge_radius); } catch (...) { return 0.10f; }
+    }();
+
+    auto dist3 = [](float ax, float ay, float az, float bx, float by, float bz) {
+      const float dx = ax - bx, dy = ay - by, dz = az - bz;
+      return std::sqrt(dx * dx + dy * dy + dz * dz);
+    };
+
+    struct Node {
+      std::string id;
+      std::string label;
+      float cx, cy, cz;
+      float confidence;
+      int detection_count;
+    };
+    std::vector<Node> node_list;
+
+    for (const auto & det : scan_detections_) {
+      bool merged = false;
+      for (auto & node : node_list) {
+        if (node.label == det.label &&
+            dist3(node.cx, node.cy, node.cz, det.cx, det.cy, det.cz) < merge_r)
+        {
+          node.confidence = std::max(node.confidence, det.score);
+          ++node.detection_count;
+          merged = true;
+          break;
+        }
+      }
+      if (!merged) {
+        const std::string nid = det.label + "_" + std::to_string(node_list.size());
+        node_list.push_back({nid, det.label, det.cx, det.cy, det.cz, det.score, 1});
+      }
+    }
+
+    json nodes_arr = json::array();
+    for (const auto & n : node_list) {
+      nodes_arr.push_back({
+        {"id", n.id}, {"label", n.label},
+        {"position", {n.cx, n.cy, n.cz}},
+        {"confidence", n.confidence},
+        {"detection_count", n.detection_count},
+      });
+    }
+
+    // ── TODO(scan-edges): implement edge-building ──────────────────────────
+    // Iterate all pairs in node_list; add a JSON edge object to edges_arr
+    // when two nodes are spatially close.
+    //
+    // Each edge should be: {"source": id_a, "target": id_b, "relation": "near"}
+    //
+    // Suggested start (5–10 lines):
+    //   const float near_thresh = 1.5f;  // metres — tweak to taste
+    //   for (size_t i = 0; i < node_list.size(); ++i) {
+    //     for (size_t j = i + 1; j < node_list.size(); ++j) {
+    //       ...
+    //     }
+    //   }
+    //
+    // Trade-offs to consider:
+    //   • Distance threshold: tighter → sparser graph; looser → noisier graph
+    //   • Relation type: just "near", or differentiate "above"/"adjacent"?
+    //   • Cross-label only vs same-label edges?
+    // ──────────────────────────────────────────────────────────────────────
+    json edges_arr = json::array();
+
+    json sg;
+    sg["nodes"] = nodes_arr;
+    sg["edges"] = edges_arr;
+    sg["frame_count"] = frame_count_;
+
+    const fs::path sg_path = out_dir / "scene_graph.json";
+    std::ofstream sg_out(sg_path);
+    if (sg_out) {
+      sg_out << sg.dump(2) << "\n";
+      RCLCPP_INFO(get_logger(), "[scan] Saved scene_graph.json (%zu nodes, %zu edges)",
+        node_list.size(), edges_arr.size());
+    } else {
+      RCLCPP_ERROR(get_logger(), "[scan] Failed to write %s", sg_path.string().c_str());
     }
   }
 
