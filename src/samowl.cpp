@@ -27,6 +27,7 @@
 
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -36,6 +37,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -769,7 +771,9 @@ public:
       SyncPolicy(10), rgb_sub_, depth_sub_, camera_info_sub_);
     sync_->registerCallback(&TopicRunner::callback, this);
 
-    points_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("/samowl/points", 10);
+    rclcpp::QoS points_qos{1};
+    points_qos.best_effort();
+    points_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("/samowl/points", points_qos);
 
     RCLCPP_INFO(get_logger(), "Waiting for RGB '%s', depth '%s', camera info '%s', TF to '%s'",
       options_.rgb_topic.c_str(),
@@ -851,24 +855,46 @@ private:
     const std::string & pcd_path,
     const builtin_interfaces::msg::Time & stamp)
   {
-    if (!fs::exists(pcd_path)) {
-      RCLCPP_WARN(get_logger(), "PCD file not found: %s", pcd_path.c_str());
+    std::error_code ec;
+
+    // Guard: file must exist and be stable (daemon may still be writing).
+    const auto sz1 = fs::file_size(pcd_path, ec);
+    if (ec || sz1 == 0) {
+      RCLCPP_WARN(get_logger(), "PCD not ready: %s", pcd_path.c_str());
       return;
     }
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    const auto sz2 = fs::file_size(pcd_path, ec);
+    if (ec || sz1 != sz2) {
+      RCLCPP_WARN(get_logger(), "PCD still changing, skip: %s", pcd_path.c_str());
+      return;
+    }
+
     pcl::PointCloud<pcl::PointXYZ> cloud;
     if (pcl::io::loadPCDFile<pcl::PointXYZ>(pcd_path, cloud) < 0) {
       RCLCPP_WARN(get_logger(), "Failed to load PCD: %s", pcd_path.c_str());
       return;
     }
+
+    if (cloud.empty()) {
+      RCLCPP_DEBUG(get_logger(), "Empty cloud, skip publish: %s", pcd_path.c_str());
+      return;
+    }
+
     sensor_msgs::msg::PointCloud2 msg;
     pcl::toROSMsg(cloud, msg);
+    msg.is_dense = false;
     msg.header.frame_id = options_.map_frame;
     msg.header.stamp = stamp;
     points_pub_->publish(msg);
+
     if (options_.debug) {
       RCLCPP_INFO(get_logger(), "Published %zu points from %s",
         cloud.size(), pcd_path.c_str());
     }
+
+    // Remove PCD after publish to prevent /tmp/samowl growing indefinitely.
+    fs::remove(pcd_path, ec);
   }
 
   Options options_;
