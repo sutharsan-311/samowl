@@ -46,9 +46,42 @@ class SceneQueryNode(Node):
             results = self.find_by_label(label)
             self.get_logger().debug(f'find_by_label({label!r}) → {results}')
 
+        # Debug: exercise find_near for every distinct label pair in the graph.
+        labels = list({n['label'] for n in self._nodes})
+        for i in range(len(labels)):
+            for j in range(i + 1, len(labels)):
+                pairs = self.find_near(labels[i], labels[j])
+                if pairs:
+                    self.get_logger().debug(
+                        f'find_near({labels[i]!r}, {labels[j]!r}) → {pairs}')
+
     # ------------------------------------------------------------------ #
     #  Queries                                                             #
     # ------------------------------------------------------------------ #
+
+    def find_near(self, label_a: str, label_b: str) -> list:
+        """Return pairs of node IDs where one has label_a, the other label_b, and a near edge exists."""
+        id_to_node = {n['id']: n for n in self._nodes}
+        results    = []
+        seen       = set()
+
+        for edge in self._edges:
+            if edge.get('relation') != 'near':
+                continue
+
+            na = id_to_node.get(edge.get('source'))
+            nb = id_to_node.get(edge.get('target'))
+            if not na or not nb:
+                continue
+
+            la, lb = na.get('label'), nb.get('label')
+            if (la == label_a and lb == label_b) or (la == label_b and lb == label_a):
+                key = tuple(sorted([na['id'], nb['id']]))
+                if key not in seen:
+                    seen.add(key)
+                    results.append({'a': na['id'], 'b': nb['id']})
+
+        return results
 
     def find_by_label(self, label: str) -> list:
         """Return all nodes whose label matches, as clean output dicts."""
