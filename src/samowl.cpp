@@ -6,6 +6,7 @@
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <nlohmann/json.hpp>
 #include <yaml-cpp/yaml.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
@@ -68,6 +69,18 @@ struct Options
   int daemon_startup_timeout_ms{30000};
   int daemon_poll_interval_ms{100};
   bool continuous{false};
+};
+
+struct ParsedResult
+{
+  bool success{false};
+  std::string error;
+  std::vector<float> bbox;       // [x1, y1, x2, y2] in image pixels
+  float score{0.0f};
+  int points_count{0};
+  std::string output_points;     // path to written PCD file
+  std::string output_hotspots;   // path to written hotspots JSON
+  std::string hotspot_json;      // serialised hotspot_map object
 };
 
 void print_usage(const char * program)
@@ -394,7 +407,7 @@ int start_daemon(const Options & options, const std::string & daemon_script)
     struct timespec ts{0, options.daemon_poll_interval_ms * 1000000L};
     nanosleep(&ts, nullptr);
     if (fs::exists(options.daemon_socket)) {
-      std::cerr << "Daemon socket ready after " << (attempt + 1) * DAEMON_SOCKET_POLL_MS << " ms\n";
+      std::cerr << "Daemon socket ready after " << (attempt + 1) * options.daemon_poll_interval_ms << " ms\n";
       return 0;
     }
     // If the child already exited, fail fast.
@@ -523,6 +536,43 @@ static int socket_call(
   return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Response parsing
+// ---------------------------------------------------------------------------
+
+// Parses a JSON response from the daemon into a ParsedResult.
+// Returns true on success, false on any parse or daemon-side error.
+// out.error is set on failure; all other fields default to zero/empty.
+bool parse_response(const std::string & s, ParsedResult & out)
+{
+  using json = nlohmann::json;
+  try {
+    const json j = json::parse(s);
+    out.success = j.value("success", false);
+    if (!out.success) {
+      out.error = j.value("error", std::string("daemon reported failure"));
+      return false;
+    }
+    if (j.contains("bbox") && j["bbox"].is_array() && j["bbox"].size() == 4) {
+      out.bbox.reserve(4);
+      for (const auto & v : j["bbox"]) {
+        out.bbox.push_back(v.get<float>());
+      }
+    }
+    out.score        = j.value("score", 0.0f);
+    out.points_count = j.value("points_count", 0);
+    out.output_points   = j.value("output_points",   std::string{});
+    out.output_hotspots = j.value("output_hotspots", std::string{});
+    if (j.contains("hotspot_map") && j["hotspot_map"].is_object()) {
+      out.hotspot_json = j["hotspot_map"].dump();
+    }
+    return true;
+  } catch (const json::exception & e) {
+    out.error = std::string("JSON parse error: ") + e.what();
+    return false;
+  }
+}
+
 // Returns 0 if the daemon reports success, non-zero otherwise.
 int run_python(const Options & options, const std::string & /*script_unused*/)
 {
@@ -535,22 +585,27 @@ int run_python(const Options & options, const std::string & /*script_unused*/)
     return EXIT_FAILURE;
   }
 
-  // Minimal success check: look for "\"success\": true" in the response.
-  // We print the response so downstream tooling can parse it if needed.
+  // Print raw response for downstream tooling compatibility.
   std::cout << response << "\n";
 
-  if (response.find("\"success\": true") == std::string::npos &&
-      response.find("\"success\":true") == std::string::npos)
-  {
-    // Try to extract the error message for a readable log line.
-    const auto err_pos = response.find("\"error\":");
-    if (err_pos != std::string::npos) {
-      std::cerr << "run_python: daemon reported failure: "
-                << response.substr(err_pos, 200) << "\n";
-    } else {
-      std::cerr << "run_python: daemon reported failure (no error field in response)\n";
-    }
+  ParsedResult result;
+  if (!parse_response(response, result)) {
+    std::cerr << "run_python: " << result.error << "\n";
     return EXIT_FAILURE;
+  }
+
+  std::cerr << "run_python: score=" << result.score << " bbox=[";
+  if (result.bbox.size() == 4) {
+    std::cerr << result.bbox[0] << "," << result.bbox[1] << ","
+              << result.bbox[2] << "," << result.bbox[3];
+  }
+  std::cerr << "] points=" << result.points_count << "\n";
+
+  if (!result.hotspot_json.empty()) {
+    const std::string preview = result.hotspot_json.size() > 200
+      ? result.hotspot_json.substr(0, 200) + "..."
+      : result.hotspot_json;
+    std::cerr << "run_python: hotspot_map=" << preview << "\n";
   }
 
   return 0;
