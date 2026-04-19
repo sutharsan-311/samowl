@@ -69,16 +69,18 @@ struct Options
   int daemon_startup_timeout_ms{30000};
   int daemon_poll_interval_ms{100};
   bool continuous{false};
+  bool debug{false};
 };
 
 struct ParsedResult
 {
   bool success{false};
+  bool valid{false};             // true only when success=true and expected fields are present
   std::string error;
-  std::vector<float> bbox;       // [x1, y1, x2, y2] in image pixels
+  std::vector<float> bbox;       // [x1, y1, x2, y2] in image pixels; cleared if any element non-numeric
   float score{0.0f};
   int points_count{0};
-  std::string output_points;     // path to written PCD file
+  std::string output_points;     // path to written PCD file (used by Step 4.2 for PointCloud2)
   std::string output_hotspots;   // path to written hotspots JSON
   std::string hotspot_json;      // serialised hotspot_map object
 };
@@ -112,6 +114,7 @@ void print_usage(const char * program)
     << "  --mask-threshold <float>    SAM logits threshold (default: 0.0)\n"
     << "  --merge-radius <meters>     Hotspot merge radius (default: 0.10)\n"
     << "  --python <path>             Python executable (default: python3)\n"
+    << "  --debug                     Enable verbose debug logging\n"
     << "  --help                      Show this help\n\n"
     << "Environment:\n"
     << "  SAMOWL_PIPELINE_SCRIPT can override the bundled Python model bridge.\n"
@@ -178,6 +181,8 @@ bool parse_args(int argc, char ** argv, Options & options)
       if (!read_value(i, argc, argv, options.work_dir)) return false;
     } else if (arg == "--continuous") {
       options.continuous = true;
+    } else if (arg == "--debug") {
+      options.debug = true;
     } else if (arg == "--owl-model") {
       if (!read_value(i, argc, argv, options.owl_model)) return false;
     } else if (arg == "--image-encoder") {
@@ -318,6 +323,9 @@ void load_config(Options & opts, const std::string & path)
       load_str(s, "work_dir", opts.work_dir);
       load_str(s, "map_frame", opts.map_frame);
       load_str(s, "room_id", opts.room_id);
+      if (s["debug"]) {
+        opts.debug = s["debug"].as<bool>();
+      }
     }
     if (cfg["daemon"]) {
       const auto & dm = cfg["daemon"];
@@ -553,19 +561,45 @@ bool parse_response(const std::string & s, ParsedResult & out)
       out.error = j.value("error", std::string("daemon reported failure"));
       return false;
     }
+
+    // bbox: validate shape and each element individually; reject partial results.
     if (j.contains("bbox") && j["bbox"].is_array() && j["bbox"].size() == 4) {
       out.bbox.reserve(4);
       for (const auto & v : j["bbox"]) {
-        out.bbox.push_back(v.get<float>());
+        if (v.is_number()) {
+          out.bbox.push_back(v.get<float>());
+        }
+      }
+      if (out.bbox.size() != 4) {
+        out.bbox.clear();
       }
     }
-    out.score        = j.value("score", 0.0f);
-    out.points_count = j.value("points_count", 0);
-    out.output_points   = j.value("output_points",   std::string{});
-    out.output_hotspots = j.value("output_hotspots", std::string{});
+
+    // Explicit type checks to prevent silent coercion into downstream ROS fields.
+    if (j.contains("score") && j["score"].is_number()) {
+      out.score = j["score"].get<float>();
+    }
+    if (j.contains("points_count") && j["points_count"].is_number_integer()) {
+      out.points_count = j["points_count"].get<int>();
+    }
+
+    // Note: daemon writes 3D points to a PCD file; path is returned here.
+    // Step 4.2 will read output_points to build a PointCloud2 message.
+    if (j.contains("output_points") && j["output_points"].is_string()) {
+      out.output_points = j["output_points"].get<std::string>();
+    }
+    if (j.contains("output_hotspots") && j["output_hotspots"].is_string()) {
+      out.output_hotspots = j["output_hotspots"].get<std::string>();
+    }
     if (j.contains("hotspot_map") && j["hotspot_map"].is_object()) {
       out.hotspot_json = j["hotspot_map"].dump();
     }
+
+    // valid = success + at least one usable detection field present.
+    const bool has_bbox = out.bbox.size() == 4;
+    const bool has_points_file = !out.output_points.empty();
+    out.valid = has_bbox || has_points_file;
+
     return true;
   } catch (const json::exception & e) {
     out.error = std::string("JSON parse error: ") + e.what();
@@ -585,7 +619,7 @@ int run_python(const Options & options, const std::string & /*script_unused*/)
     return EXIT_FAILURE;
   }
 
-  // Print raw response for downstream tooling compatibility.
+  // TODO(4.4): Remove raw stdout once all fields are published to ROS topics.
   std::cout << response << "\n";
 
   ParsedResult result;
@@ -594,18 +628,24 @@ int run_python(const Options & options, const std::string & /*script_unused*/)
     return EXIT_FAILURE;
   }
 
-  std::cerr << "run_python: score=" << result.score << " bbox=[";
-  if (result.bbox.size() == 4) {
-    std::cerr << result.bbox[0] << "," << result.bbox[1] << ","
-              << result.bbox[2] << "," << result.bbox[3];
+  if (!result.valid) {
+    std::cerr << "run_python: daemon response incomplete — no bbox or points file\n";
   }
-  std::cerr << "] points=" << result.points_count << "\n";
 
-  if (!result.hotspot_json.empty()) {
-    const std::string preview = result.hotspot_json.size() > 200
-      ? result.hotspot_json.substr(0, 200) + "..."
-      : result.hotspot_json;
-    std::cerr << "run_python: hotspot_map=" << preview << "\n";
+  if (options.debug) {
+    std::cerr << "run_python: score=" << result.score << " bbox=[";
+    if (result.bbox.size() == 4) {
+      std::cerr << result.bbox[0] << "," << result.bbox[1] << ","
+                << result.bbox[2] << "," << result.bbox[3];
+    }
+    std::cerr << "] points=" << result.points_count << "\n";
+
+    if (!result.hotspot_json.empty()) {
+      const std::string preview = result.hotspot_json.size() > 200
+        ? result.hotspot_json.substr(0, 200) + "..."
+        : result.hotspot_json;
+      std::cerr << "run_python: hotspot_map=" << preview << "\n";
+    }
   }
 
   return 0;
