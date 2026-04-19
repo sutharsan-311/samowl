@@ -178,6 +178,13 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
     merge_radius = get_param(req, config, "detection", "merge_radius", 0.10, float)
     max_points = get_param(req, config, "detection", "max_points", 80000, int)
 
+    if config.get("system", {}).get("debug", False):
+        log.debug(
+            "[effective] threshold=%.3f mask_threshold=%.3f merge_radius=%.3f "
+            "max_points=%d room_id=%s",
+            threshold, mask_threshold, merge_radius, max_points, room_id,
+        )
+
     # Ensure output directories exist.
     for p in [output_mask, output_boundary, output_depth_mask, output_points, output_hotspots]:
         if p:
