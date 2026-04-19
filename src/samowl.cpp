@@ -22,6 +22,7 @@
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <std_msgs/msg/string.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -776,6 +777,7 @@ public:
     sensor_qos.best_effort();
     points_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("/samowl/points", sensor_qos);
     objects_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>("/samowl/objects", sensor_qos);
+    detections_pub_ = create_publisher<std_msgs::msg::String>("/samowl/detections", sensor_qos);
 
     RCLCPP_INFO(get_logger(), "Waiting for RGB '%s', depth '%s', camera info '%s', TF to '%s'",
       options_.rgb_topic.c_str(),
@@ -832,6 +834,7 @@ private:
           if (load_stable_pcd(result.output_points, cloud)) {
             publish_points(cloud, rgb_msg->header.stamp);
             publish_objects(cloud, options_.text, result.score, rgb_msg->header.stamp);
+            publish_detections(cloud, options_.text, result.score, rgb_msg->header.stamp);
           }
           std::error_code ec;
           fs::remove(result.output_points, ec);
@@ -968,6 +971,36 @@ private:
     objects_pub_->publish(array);
   }
 
+  void publish_detections(
+    const pcl::PointCloud<pcl::PointXYZ> & cloud,
+    const std::string & label,
+    float score,
+    const builtin_interfaces::msg::Time & stamp)
+  {
+    float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+    for (const auto & pt : cloud) {
+      cx += pt.x; cy += pt.y; cz += pt.z;
+    }
+    const float n = static_cast<float>(cloud.size());
+    cx /= n; cy /= n; cz /= n;
+
+    // Build JSON manually — same pattern as build_request_json, no extra deps.
+    const double ts = static_cast<double>(stamp.sec) + stamp.nanosec * 1e-9;
+    std::string json = "{";
+    json += "\"frame_id\":\"" + options_.map_frame + "\",";
+    json += "\"stamp\":" + std::to_string(ts) + ",";
+    json += "\"label\":\"" + label + "\",";
+    json += "\"score\":" + std::to_string(score) + ",";
+    json += "\"position\":[" +
+      std::to_string(cx) + "," +
+      std::to_string(cy) + "," +
+      std::to_string(cz) + "]}";
+
+    std_msgs::msg::String msg;
+    msg.data = std::move(json);
+    detections_pub_->publish(msg);
+  }
+
   Options options_;
   std::string script_;
   message_filters::Subscriber<Image> rgb_sub_;
@@ -978,6 +1011,7 @@ private:
   tf2_ros::TransformListener tf_listener_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr points_pub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr objects_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr detections_pub_;
   rclcpp::Time last_pcd_warn_{0, 0, RCL_ROS_TIME};
   std::atomic_bool processing_{false};
   int last_status_{EXIT_SUCCESS};

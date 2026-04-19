@@ -19,6 +19,7 @@ find_package(tf2_ros REQUIRED)
 find_package(nlohmann_json 3 REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io)
 find_package(pcl_conversions REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 
 add_executable(samowl src/samowl.cpp)
@@ -39,6 +40,7 @@ ament_target_dependencies(
   pcl_conversions
   rclcpp
   sensor_msgs
+  std_msgs
   visualization_msgs
   tf2
   tf2_ros
