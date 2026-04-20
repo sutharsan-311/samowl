@@ -18,10 +18,14 @@ class OwlVit:
     def __init__(self, threshold=0.1, model_name="google/owlvit-base-patch32"):
         self.processor = OwlViTProcessor.from_pretrained(model_name, local_files_only=True)
         self.model = OwlViTForObjectDetection.from_pretrained(model_name, local_files_only=True)
+        self.model = self.model.cuda().half()
         self.threshold = threshold
 
     def predict(self, image, texts):
         inputs = self.processor(text=texts, images=image, return_tensors="pt")
+        inputs = {k: v.cuda() for k, v in inputs.items()}
+        if "pixel_values" in inputs:
+            inputs["pixel_values"] = inputs["pixel_values"].half()
         with torch.no_grad():
             outputs = self.model(**inputs)
         target_sizes = torch.Tensor([image.size[::-1]])
