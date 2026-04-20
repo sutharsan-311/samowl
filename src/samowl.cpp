@@ -86,17 +86,26 @@ struct Options
   bool debug{false};
 };
 
+struct DetectionEntry
+{
+  std::string label;
+  float score{0.0f};
+  float cx{0.0f}, cy{0.0f}, cz{0.0f};
+  std::string output_points;  // per-label PCD path; empty if no 3D projection
+};
+
 struct ParsedResult
 {
   bool success{false};
-  bool valid{false};             // true only when success=true and expected fields are present
+  bool valid{false};
   std::string error;
-  std::vector<float> bbox;       // [x1, y1, x2, y2] in image pixels; cleared if any element non-numeric
+  std::vector<float> bbox;       // legacy single-detection: [x1,y1,x2,y2]
   float score{0.0f};
   int points_count{0};
-  std::string output_points;     // path to written PCD file (used by Step 4.2 for PointCloud2)
-  std::string output_hotspots;   // path to written hotspots JSON
-  std::string hotspot_json;      // serialised hotspot_map object
+  std::string output_points;     // legacy: primary PCD path
+  std::string output_hotspots;
+  std::string hotspot_json;
+  std::vector<DetectionEntry> detections;  // all per-label results (new format)
 };
 
 void print_usage(const char * program)
@@ -645,10 +654,32 @@ bool parse_response(const std::string & s, ParsedResult & out)
       out.hotspot_json = j["hotspot_map"].dump();
     }
 
+    if (j.contains("detections") && j["detections"].is_array()) {
+      for (const auto & d : j["detections"]) {
+        DetectionEntry e;
+        if (d.contains("label") && d["label"].is_string()) {
+          e.label = d["label"].get<std::string>();
+        }
+        if (d.contains("score") && d["score"].is_number()) {
+          e.score = d["score"].get<float>();
+        }
+        if (d.contains("centroid") && d["centroid"].is_array() && d["centroid"].size() == 3) {
+          e.cx = d["centroid"][0].get<float>();
+          e.cy = d["centroid"][1].get<float>();
+          e.cz = d["centroid"][2].get<float>();
+        }
+        if (d.contains("output_points") && d["output_points"].is_string()) {
+          e.output_points = d["output_points"].get<std::string>();
+        }
+        out.detections.push_back(e);
+      }
+    }
+
     // valid = success + at least one usable detection field present.
     const bool has_bbox = out.bbox.size() == 4;
     const bool has_points_file = !out.output_points.empty();
-    out.valid = has_bbox || has_points_file;
+    const bool has_detections = !out.detections.empty();
+    out.valid = has_bbox || has_points_file || has_detections;
 
     return true;
   } catch (const json::exception & e) {
@@ -922,37 +953,65 @@ private:
           startup_watchdog_->cancel();
           startup_watchdog_.reset();
         }
-        if (!result.output_points.empty()) {
+
+        const double ts = static_cast<double>(rgb_msg->header.stamp.sec) +
+          rgb_msg->header.stamp.nanosec * 1e-9;
+
+        if (!result.detections.empty()) {
+          // Multi-label path: centroids come directly from daemon JSON response.
+          for (const auto & det : result.detections) {
+            if (options_.mode == "scan") {
+              scan_detections_.push_back({det.label, det.score, det.cx, det.cy, det.cz, ts});
+              RCLCPP_DEBUG(get_logger(), "[scan] frame=%d label=%s score=%.3f pos=(%.2f,%.2f,%.2f)",
+                frame_count_, det.label.c_str(), det.score, det.cx, det.cy, det.cz);
+            }
+            // Publish markers in both modes.
+            publish_objects(det.cx, det.cy, det.cz, det.label, det.score, rgb_msg->header.stamp);
+            publish_detections(det.cx, det.cy, det.cz, det.label, det.score, rgb_msg->header.stamp);
+            // In live mode also stream the PointCloud2; in scan mode the daemon
+            // writes PCD files already handled by hotspot fusion.
+            if (options_.mode != "scan" && !det.output_points.empty()) {
+              pcl::PointCloud<pcl::PointXYZ> cloud;
+              if (load_stable_pcd(det.output_points, cloud)) {
+                publish_points(cloud, rgb_msg->header.stamp);
+              }
+            }
+            // Clean up per-detection PCD (both modes — daemon wrote it for us).
+            if (!det.output_points.empty()) {
+              std::error_code ec;
+              fs::remove(det.output_points, ec);
+            }
+          }
+        } else if (!result.output_points.empty()) {
+          // Legacy single-detection path (daemon older than multi-label support).
           pcl::PointCloud<pcl::PointXYZ> cloud;
           if (load_stable_pcd(result.output_points, cloud)) {
             float cx, cy, cz;
             compute_centroid(cloud, cx, cy, cz);
             if (options_.mode == "scan") {
-              const double ts = static_cast<double>(rgb_msg->header.stamp.sec) +
-                rgb_msg->header.stamp.nanosec * 1e-9;
               scan_detections_.push_back({options_.text, result.score, cx, cy, cz, ts});
-              RCLCPP_DEBUG(get_logger(), "[scan] frame=%d label=%s score=%.3f pos=(%.2f,%.2f,%.2f)",
-                frame_count_, options_.text.c_str(), result.score, cx, cy, cz);
-            } else {
+            }
+            publish_objects(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
+            publish_detections(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
+            if (options_.mode != "scan") {
               publish_points(cloud, rgb_msg->header.stamp);
-              publish_objects(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
-              publish_detections(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
             }
           }
           std::error_code ec;
           fs::remove(result.output_points, ec);
         }
-        RCLCPP_INFO(get_logger(), "[%s] frame=%d mask='%s'",
-          options_.mode.c_str(), frame_count_, options_.output_mask.c_str());
-        // Clean up per-frame scratch files so /tmp/samowl does not grow
-        // indefinitely.  Errors are logged but do not affect last_status_.
-        for (const auto & p : {rgb_path, depth_path, camera_model_path}) {
-          std::error_code ec;
-          fs::remove(p, ec);
-          if (ec) {
-            RCLCPP_WARN(get_logger(), "Could not remove temp file %s: %s",
-              p.string().c_str(), ec.message().c_str());
-          }
+
+        RCLCPP_INFO(get_logger(), "[%s] frame=%d detections=%zu",
+          options_.mode.c_str(), frame_count_, result.detections.size());
+      }
+
+      // Always clean up scratch files — even when inference fails.
+      for (const auto & p : {rgb_path, depth_path, camera_model_path}) {
+        std::error_code ec;
+        fs::remove(p, ec);
+        if (ec && ec != std::errc::no_such_file_or_directory) {
+          RCLCPP_WARN(get_logger(), "Could not remove temp file %s: %s",
+            p.string().c_str(), ec.message().c_str());
         }
       }
     } catch (const std::exception & error) {
