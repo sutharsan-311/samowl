@@ -834,7 +834,7 @@ public:
         std::chrono::seconds(30),
         [this]() {
           startup_watchdog_->cancel();
-          if (frame_count_ == 0) {
+          if (total_frame_count_ == 0) {
             RCLCPP_FATAL(get_logger(),
               "[scan] No frames received in 30 s — check topic names and bag playback. "
               "Expected RGB='%s' depth='%s'",
