@@ -3,6 +3,7 @@
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -396,7 +397,9 @@ def write_hotspot_json(path, args, detection, mask_iou, map_points, normal, came
         matched.setdefault("observations", []).append(observation)
 
     hotspot_map["updated_timestamp"] = datetime.now(timezone.utc).isoformat()
-    output.write_text(json.dumps(hotspot_map, indent=2), encoding="utf-8")
+    tmp_path = output.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(hotspot_map, indent=2), encoding="utf-8")
+    os.replace(tmp_path, output)
     return hotspot_map
 
 
