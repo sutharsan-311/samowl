@@ -93,7 +93,8 @@ def _import_pipeline():
 
 _pipeline = _import_pipeline()
 
-OwlVit = _pipeline.OwlVit
+NanoOwlPredictor = _pipeline.NanoOwlPredictor
+OwlVit = _pipeline.OwlVit  # alias kept for any external references
 Predictor = _pipeline.Predictor
 bbox_to_points = _pipeline.bbox_to_points
 draw_boundary = _pipeline.draw_boundary
@@ -120,9 +121,9 @@ log = logging.getLogger("samowl_daemon")
 # Model holder — loaded once at startup
 # ---------------------------------------------------------------------------
 class ModelBundle:
-    def __init__(self, owl_model: str, image_encoder: str, mask_decoder: str, default_threshold: float):
-        log.info("Loading OWL-ViT from %s", owl_model)
-        self.owl = OwlVit(threshold=default_threshold, model_name=owl_model)
+    def __init__(self, owl_model: str, owl_encoder: str, image_encoder: str, mask_decoder: str, default_threshold: float):
+        log.info("Loading NanoOWL — text model: %s  TRT encoder: %s", owl_model, owl_encoder)
+        self.owl = NanoOwlPredictor(model_name=owl_model, image_encoder_engine=owl_encoder, threshold=default_threshold)
         log.info("Loading SAM TensorRT engines: encoder=%s  decoder=%s", image_encoder, mask_decoder)
         self.sam = Predictor(image_encoder, mask_decoder)
         log.info("Models loaded — daemon ready")
@@ -386,8 +387,13 @@ def parse_args(config: dict) -> argparse.Namespace:
         help="OWL-ViT model directory",
     )
     parser.add_argument(
+        "--owl-encoder",
+        default=models.get("owl_encoder", "data/owl_image_encoder_patch32.engine"),
+        help="NanoOWL TRT vision encoder engine",
+    )
+    parser.add_argument(
         "--image-encoder",
-        default=models.get("image_encoder", "data/resnet18_image_encoder.engine"),
+        default=models.get("image_encoder", "data/mobile_sam_image_encoder.engine"),
         help="SAM image encoder TensorRT engine",
     )
     parser.add_argument(
@@ -415,10 +421,11 @@ def main() -> None:
     args = parse_args(config)
 
     owl_model = str(resolve_existing_path(args.owl_model, "OWL model directory"))
+    owl_encoder = str(resolve_existing_path(args.owl_encoder, "NanoOWL TRT encoder"))
     image_encoder = str(resolve_existing_path(args.image_encoder, "SAM image encoder engine"))
     mask_decoder = str(resolve_existing_path(args.mask_decoder, "SAM mask decoder engine"))
 
-    bundle = ModelBundle(owl_model, image_encoder, mask_decoder, args.threshold)
+    bundle = ModelBundle(owl_model, owl_encoder, image_encoder, mask_decoder, args.threshold)
     serve(args.socket, bundle, config)
 
 
