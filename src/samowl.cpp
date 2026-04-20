@@ -345,6 +345,7 @@ void load_config(Options & opts, const std::string & path)
     }
     if (cfg["detection"]) {
       const auto & d = cfg["detection"];
+      load_str(d, "text", opts.text);
       load_str(d, "threshold", opts.threshold);
       load_str(d, "mask_threshold", opts.mask_threshold);
       load_str(d, "merge_radius", opts.merge_radius);
