@@ -1148,20 +1148,17 @@ private:
     const std::string id = label + "_" + std::to_string(detection_counter_++);
     const double ts = static_cast<double>(stamp.sec) + stamp.nanosec * 1e-9;
 
-    // Build JSON manually — same pattern as build_request_json, no extra deps.
-    std::string json = "{";
-    json += "\"id\":\"" + id + "\",";
-    json += "\"frame_id\":\"" + options_.map_frame + "\",";
-    json += "\"stamp\":" + std::to_string(ts) + ",";
-    json += "\"label\":\"" + label + "\",";
-    json += "\"score\":" + std::to_string(score) + ",";
-    json += "\"position\":[" +
-      std::to_string(cx) + "," +
-      std::to_string(cy) + "," +
-      std::to_string(cz) + "]}";
+    using json = nlohmann::json;
+    json j;
+    j["id"]       = id;
+    j["frame_id"] = options_.map_frame;
+    j["stamp"]    = ts;
+    j["label"]    = label;
+    j["score"]    = score;
+    j["position"] = {cx, cy, cz};
 
     std_msgs::msg::String msg;
-    msg.data = std::move(json);
+    msg.data = j.dump();
     detections_pub_->publish(msg);
   }
 
