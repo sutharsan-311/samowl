@@ -3,9 +3,9 @@
 
 # ROS2 topic names (required in topic mode; set via CLI or launch file)
 topics:
-  rgb: ""
-  depth: ""
-  camera_info: ""  # derived from rgb topic if empty
+  rgb: "/front_depth/rgb0/image"
+  depth: "/front_depth/depth0/image_raw"
+  camera_info: "/front_depth/rgb0/camera_info"
 
 # ML model paths (relative to package share directory or absolute)
 models:
@@ -15,19 +15,20 @@ models:
 
 # Detection and segmentation parameters
 detection:
-  threshold: 0.1        # OWL-ViT score threshold
-  mask_threshold: 0.0   # SAM logits threshold
-  merge_radius: 0.10    # 3D radius in metres for merging same-label hotspots
-  max_points: 80000     # Maximum masked points written to PCD
+  threshold: 0.05       # OWL-ViT score threshold
+  mask_threshold: 0.5   # SAM logits threshold
+  merge_radius: 0.1     # 3D radius in metres for merging same-label hotspots
+  max_points: 50000     # Maximum masked points written to PCD
 
 # System-level settings
 system:
   python: "python3"
   work_dir: "/tmp/samowl"
-  map_frame: "map"
+  map_frame: "odom"
   room_id: "simulation_room"
-  mode: "live"                 # "live" or "scan"
-  output_dir: "/output"        # scan mode: directory for final JSON output
+  debug: true
+  mode: "scan"                 # "live" or "scan"
+  output_dir: "output_test"    # scan mode: directory for final JSON output
   scan_idle_timeout_ms: 5000   # scan mode: ms of silence before finalization
 
 # Daemon process settings
