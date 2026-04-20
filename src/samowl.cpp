@@ -39,7 +39,6 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include <thread>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -402,11 +401,28 @@ static pid_t g_daemon_pid = -1;
 // Returns 0 if the daemon was started (or was already running), non-zero on error.
 int start_daemon(const Options & options, const std::string & daemon_script)
 {
-  // If the socket already exists a daemon is already running — nothing to do.
+  // If the socket file exists, probe whether the daemon is actually alive.
   if (fs::exists(options.daemon_socket)) {
-    std::cerr << "Daemon socket already present at " << options.daemon_socket
-              << " — reusing existing daemon\n";
-    return 0;
+    const int probe_fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (probe_fd >= 0) {
+      struct sockaddr_un probe_addr{};
+      probe_addr.sun_family = AF_UNIX;
+      std::strncpy(probe_addr.sun_path, options.daemon_socket.c_str(),
+                   sizeof(probe_addr.sun_path) - 1);
+      const bool alive = (::connect(probe_fd,
+        reinterpret_cast<struct sockaddr *>(&probe_addr),
+        sizeof(probe_addr)) == 0);
+      ::close(probe_fd);
+      if (alive) {
+        std::cerr << "Daemon socket alive at " << options.daemon_socket
+                  << " — reusing existing daemon\n";
+        return 0;
+      }
+      std::cerr << "Stale daemon socket at " << options.daemon_socket
+                << " — removing and restarting\n";
+    }
+    std::error_code ec;
+    fs::remove(options.daemon_socket, ec);
   }
 
   // Ensure the work directory exists so the socket path is valid.
@@ -799,6 +815,21 @@ public:
       options_.depth_topic.c_str(),
       options_.camera_info_topic.c_str(),
       options_.map_frame.c_str());
+
+    if (options_.mode == "scan") {
+      startup_watchdog_ = create_wall_timer(
+        std::chrono::seconds(30),
+        [this]() {
+          startup_watchdog_->cancel();
+          if (frame_count_ == 0) {
+            RCLCPP_FATAL(get_logger(),
+              "[scan] No frames received in 30 s — check topic names and bag playback. "
+              "Expected RGB='%s' depth='%s'",
+              options_.rgb_topic.c_str(), options_.depth_topic.c_str());
+            rclcpp::shutdown();
+          }
+        });
+    }
   }
 
   int last_status() const
@@ -816,6 +847,9 @@ private:
     // serializes callbacks naturally so no frame-drop guard is needed.
     if (options_.mode == "live" && processing_.exchange(true)) {
       return;
+    }
+    if (options_.mode == "scan") {
+      ++total_frame_count_;
     }
 
     try {
@@ -847,6 +881,10 @@ private:
         RCLCPP_ERROR(get_logger(), "OWL + SAM pipeline failed with status %d", last_status_);
       } else {
         ++frame_count_;
+        if (startup_watchdog_) {
+          startup_watchdog_->cancel();
+          startup_watchdog_.reset();
+        }
         if (!result.output_points.empty()) {
           pcl::PointCloud<pcl::PointXYZ> cloud;
           if (load_stable_pcd(result.output_points, cloud)) {
@@ -963,6 +1001,7 @@ private:
       int detection_count;
     };
     std::vector<Node> node_list;
+    std::map<std::string, int> label_counter;
 
     for (const auto & det : scan_detections_) {
       bool merged = false;
@@ -981,7 +1020,7 @@ private:
         }
       }
       if (!merged) {
-        const std::string nid = det.label + "_" + std::to_string(node_list.size());
+        const std::string nid = det.label + "_" + std::to_string(label_counter[det.label]++);
         node_list.push_back({nid, det.label, det.cx, det.cy, det.cz, det.score, 1});
       }
     }
@@ -1014,7 +1053,9 @@ private:
     json sg;
     sg["nodes"] = nodes_arr;
     sg["edges"] = edges_arr;
-    sg["frame_count"] = frame_count_;
+    sg["frame_count"]       = frame_count_;
+    sg["total_frames_seen"] = total_frame_count_;
+    sg["frames_dropped"]    = total_frame_count_ - frame_count_;
 
     const fs::path sg_path = out_dir / "scene_graph.json";
     std::ofstream sg_out(sg_path);
@@ -1042,15 +1083,9 @@ private:
     pcl::PointCloud<pcl::PointXYZ> & cloud)
   {
     std::error_code ec;
-    const auto sz1 = fs::file_size(pcd_path, ec);
-    if (ec || sz1 == 0) {
-      RCLCPP_WARN(get_logger(), "PCD not ready: %s", pcd_path.c_str());
-      return false;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    const auto sz2 = fs::file_size(pcd_path, ec);
-    if (ec || sz1 != sz2) {
-      RCLCPP_WARN(get_logger(), "PCD still changing, skip: %s", pcd_path.c_str());
+    const auto sz = fs::file_size(pcd_path, ec);
+    if (ec || sz == 0) {
+      RCLCPP_WARN(get_logger(), "PCD missing or empty: %s", pcd_path.c_str());
       return false;
     }
     if (pcl::io::loadPCDFile<pcl::PointXYZ>(pcd_path, cloud) < 0) {
@@ -1179,8 +1214,10 @@ private:
   std::atomic_bool finalized_{false};
   int last_status_{EXIT_SUCCESS};
   int frame_count_{0};
+  int total_frame_count_{0};
   std::vector<DetectionRecord> scan_detections_;
   rclcpp::TimerBase::SharedPtr idle_timer_;
+  rclcpp::TimerBase::SharedPtr startup_watchdog_;
 };
 }  // namespace
 
