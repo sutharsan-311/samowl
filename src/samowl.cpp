@@ -17,6 +17,7 @@
 #include <sensor_msgs/image_encodings.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <tf2/exceptions.h>
 #include <tf2/time.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
@@ -875,11 +876,20 @@ private:
       const fs::path depth_path = fs::path(options_.work_dir) / ("depth_" + stamp + ".png");
       const fs::path camera_model_path = fs::path(options_.work_dir) / ("camera_model_" + stamp + ".json");
 
-      const auto transform = tf_buffer_.lookupTransform(
-        options_.map_frame,
-        rgb_msg->header.frame_id,
-        rgb_msg->header.stamp,
-        tf2::durationFromSec(0.25));
+      geometry_msgs::msg::TransformStamped transform;
+      try {
+        transform = tf_buffer_.lookupTransform(
+          options_.map_frame,
+          rgb_msg->header.frame_id,
+          rgb_msg->header.stamp,
+          tf2::durationFromSec(0.25));
+      } catch (const tf2::ExtrapolationException &) {
+        // Bag playback can produce slight TF timing skew; fall back to latest.
+        transform = tf_buffer_.lookupTransform(
+          options_.map_frame,
+          rgb_msg->header.frame_id,
+          tf2::TimePointZero);
+      }
 
       cv::imwrite(rgb_path.string(), rgb_to_bgr(rgb_msg));
       cv::imwrite(depth_path.string(), depth_to_png_image(depth_msg));
