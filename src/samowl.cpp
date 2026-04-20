@@ -1197,6 +1197,22 @@ int main(int argc, char ** argv)
     return EXIT_FAILURE;
   }
 
+  // Resolve output paths to absolute so file existence checks and copies work
+  // regardless of the process CWD (important for scan mode output).
+  {
+    auto to_abs = [](std::string & p) {
+      if (!p.empty()) {
+        p = fs::absolute(p).string();
+      }
+    };
+    to_abs(options.output_mask);
+    to_abs(options.output_boundary);
+    to_abs(options.output_depth_mask);
+    to_abs(options.output_points);
+    to_abs(options.output_hotspots);
+    to_abs(options.output_dir);
+  }
+
   // Find the daemon script (used to launch the persistent Python process).
   const std::string daemon_script = find_script(
     "SAMOWL_DAEMON_SCRIPT",
