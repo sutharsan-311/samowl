@@ -972,6 +972,10 @@ private:
         if (node.label == det.label &&
             dist3(node.cx, node.cy, node.cz, det.cx, det.cy, det.cz) < merge_r)
         {
+          const float w = static_cast<float>(node.detection_count);
+          node.cx = (node.cx * w + det.cx) / (w + 1.0f);
+          node.cy = (node.cy * w + det.cy) / (w + 1.0f);
+          node.cz = (node.cz * w + det.cz) / (w + 1.0f);
           node.confidence = std::max(node.confidence, det.score);
           ++node.detection_count;
           merged = true;
