@@ -12,13 +12,8 @@ import torch.nn.functional as F
 import tensorrt as trt
 from PIL import Image, ImageDraw, ImageFont
 from torch2trt import TRTModule
-from transformers import OwlViTProcessor, OwlViTTextModel
-
-
-# Image size expected by the NanoOWL patch-32 TRT encoder.
-_NANOOWL_IMAGE_SIZE = 768
-_NANOOWL_IMAGE_MEAN = torch.tensor([0.48145466, 0.4578275, 0.40821073])[:, None, None]
-_NANOOWL_IMAGE_STD  = torch.tensor([0.26862954, 0.26130258, 0.27577711])[:, None, None]
+from transformers import OwlViTProcessor, OwlViTModel
+from nanoowl.owl_predictor import OwlPredictor as _NanoOwlRef
 
 
 def _load_nanoowl_encoder(path: str) -> "TRTModule":
@@ -32,33 +27,27 @@ def _load_nanoowl_encoder(path: str) -> "TRTModule":
     )
 
 
-def _preprocess_nanoowl(image: "Image.Image") -> torch.Tensor:
-    """Resize to 768x768 with CLIP normalization, return (1,3,768,768) float16 on CUDA."""
-    img = image.resize((_NANOOWL_IMAGE_SIZE, _NANOOWL_IMAGE_SIZE))
-    t = torch.from_numpy(np.array(img, dtype=np.float32)).permute(2, 0, 1) / 255.0
-    t = (t - _NANOOWL_IMAGE_MEAN) / _NANOOWL_IMAGE_STD
-    return t.unsqueeze(0).cuda().half()
-
-
 class NanoOwlPredictor:
     """OWL-ViT with TRT vision encoder and cached PyTorch text encoder."""
 
     def __init__(self, model_name: str, image_encoder_engine: str, threshold: float = 0.1):
         self.processor = OwlViTProcessor.from_pretrained(model_name, local_files_only=True)
-        self.text_model = OwlViTTextModel.from_pretrained(model_name, local_files_only=True)
+        self.text_model = OwlViTModel.from_pretrained(model_name, local_files_only=True)
         self.text_model = self.text_model.cuda().half()
-        self.text_model.eval()
+        self.text_model.train(False)
         self.image_encoder = _load_nanoowl_encoder(image_encoder_engine)
         self.threshold = threshold
         self._text_cache: dict = {}
+        # Use NanoOWL's image preprocessor and ROI extractor for correct square-pad resize
+        self._nano = _NanoOwlRef(image_encoder_engine=image_encoder_engine)
 
     def _encode_text(self, texts: tuple) -> torch.Tensor:
         if texts not in self._text_cache:
             inputs = self.processor(text=list(texts), return_tensors="pt", padding=True)
             inputs = {k: v.cuda() for k, v in inputs.items()}
             with torch.no_grad():
-                out = self.text_model(**inputs)
-            embeds = out.text_embeds.half()                         # (Q, 512)
+                out = self.text_model.text_model(**inputs)
+                embeds = self.text_model.text_projection(out.pooler_output).half()  # (Q, 512)
             embeds = embeds / embeds.norm(dim=-1, keepdim=True)
             self._text_cache[texts] = embeds
         return self._text_cache[texts]
@@ -67,16 +56,21 @@ class NanoOwlPredictor:
         texts = tuple(texts)
         text_embeds = self._encode_text(texts)                      # (Q, 512)
 
-        img_t = _preprocess_nanoowl(image)
+        W, H = image.size
+        img_t = self._nano.image_preprocessor.preprocess_pil_image(image)
+        roi = torch.tensor([[0, 0, W, H]], dtype=img_t.dtype, device=img_t.device)
+        roi_img, _ = self._nano.extract_rois(img_t, roi, pad_square=True)
         with torch.no_grad():
-            _, image_class_embeds, logit_shift, logit_scale, pred_boxes = self.image_encoder(img_t)
-        # image_class_embeds: (1, P, 512)   logit_shift/scale: (1, P, 1)   pred_boxes: (1, P, 4)
+            _, image_class_embeds, logit_shift, logit_scale, pred_boxes = self.image_encoder(roi_img)
+        image_class_embeds = image_class_embeds.half()
+        image_class_embeds = image_class_embeds / (image_class_embeds.norm(dim=-1, keepdim=True) + 1e-6)
+        logit_shift = logit_shift.half()
+        logit_scale = logit_scale.half()
 
         logits = torch.einsum("bpd,qd->bpq", image_class_embeds, text_embeds)  # (1, P, Q)
-        logits = (logits + logit_shift) * torch.exp(logit_scale)
+        logits = (logits + logit_shift) * logit_scale
         scores_all = torch.sigmoid(logits)[0]                       # (P, Q)
 
-        W, H = image.size
         detections = []
         for q_idx, text in enumerate(texts):
             q_scores = scores_all[:, q_idx]                         # (P,)
@@ -466,6 +460,7 @@ def parse_args():
     parser.add_argument("--max-points", type=int, default=80000, help="Maximum masked points to save to PCD.")
     parser.add_argument("--merge-radius", type=float, default=0.10, help="3D radius for merging same-label hotspots.")
     parser.add_argument("--owl-model", default="data/owlvit-base-patch32", help="Package-local OWL-ViT model directory.")
+    parser.add_argument("--owl-encoder", default="data/owl_image_encoder_patch32.engine", help="NanoOWL TRT vision encoder engine.")
     parser.add_argument("--image-encoder", default="data/resnet18_image_encoder.engine")
     parser.add_argument("--mask-decoder", default="data/mobile_sam_mask_decoder.engine")
     parser.add_argument("--threshold", type=float, default=0.1, help="OWL score threshold.")
@@ -485,6 +480,7 @@ def main():
     output_mask = Path(args.output_mask)
     output_boundary = Path(args.output_boundary)
     owl_model = resolve_existing_path(args.owl_model, "OWL model directory")
+    owl_encoder = resolve_existing_path(args.owl_encoder, "NanoOWL TRT encoder engine")
     image_encoder = resolve_existing_path(args.image_encoder, "SAM image encoder engine")
     mask_decoder = resolve_existing_path(args.mask_decoder, "SAM mask decoder engine")
     output_mask.parent.mkdir(parents=True, exist_ok=True)
@@ -498,7 +494,7 @@ def main():
 
     image = Image.open(image_path).convert("RGB")
 
-    detector = OwlVit(args.threshold, str(owl_model))
+    detector = OwlVit(str(owl_model), str(owl_encoder), args.threshold)
     detections = detector.predict(image, texts=[args.text])
     if not detections:
         raise RuntimeError(f"No OWL detections found for prompt '{args.text}' at threshold {args.threshold}")

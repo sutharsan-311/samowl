@@ -11,14 +11,14 @@ topics:
 models:
   owl: "data/owlvit-base-patch32"
   owl_encoder: "data/owl_image_encoder_patch32.engine"
-  image_encoder: "data/mobile_sam_image_encoder.engine"
+  image_encoder: "data/resnet18_image_encoder.engine"
   mask_decoder: "data/mobile_sam_mask_decoder.engine"
 
 # Detection and segmentation parameters
 detection:
-  text: "medical bed, stretcher"
+  text: "hospital bed, table, chair, stretcher"
   threshold: 0.05       # OWL-ViT score threshold
-  mask_threshold: 0.5   # SAM logits threshold
+  mask_threshold: 0.0   # SAM logits threshold
   merge_radius: 0.1     # 3D radius in metres for merging same-label hotspots
   max_points: 50000     # Maximum masked points written to PCD
 
