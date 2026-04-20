@@ -66,7 +66,8 @@ struct Options
   std::string camera_model;
   std::string map_frame{"map"};
   std::string owl_model{"data/owlvit-base-patch32"};
-  std::string image_encoder{"data/resnet18_image_encoder.engine"};
+  std::string owl_encoder{"data/owl_image_encoder_patch32.engine"};
+  std::string image_encoder{"data/mobile_sam_image_encoder.engine"};
   std::string mask_decoder{"data/mobile_sam_mask_decoder.engine"};
   std::string threshold{"0.1"};
   std::string mask_threshold{"0.0"};
@@ -340,6 +341,7 @@ void load_config(Options & opts, const std::string & path)
     if (cfg["models"]) {
       const auto & m = cfg["models"];
       load_str(m, "owl", opts.owl_model);
+      load_str(m, "owl_encoder", opts.owl_encoder);
       load_str(m, "image_encoder", opts.image_encoder);
       load_str(m, "mask_decoder", opts.mask_decoder);
     }
@@ -436,6 +438,7 @@ int start_daemon(const Options & options, const std::string & daemon_script)
     daemon_script,
     "--socket",        options.daemon_socket,
     "--owl-model",     options.owl_model,
+    "--owl-encoder",   options.owl_encoder,
     "--image-encoder", options.image_encoder,
     "--mask-decoder",  options.mask_decoder,
     "--threshold",     options.threshold,

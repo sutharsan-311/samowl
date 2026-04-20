@@ -10,7 +10,8 @@ topics:
 # ML model paths (relative to package share directory or absolute)
 models:
   owl: "data/owlvit-base-patch32"
-  image_encoder: "data/resnet18_image_encoder.engine"
+  owl_encoder: "data/owl_image_encoder_patch32.engine"
+  image_encoder: "data/mobile_sam_image_encoder.engine"
   mask_decoder: "data/mobile_sam_mask_decoder.engine"
 
 # Detection and segmentation parameters
