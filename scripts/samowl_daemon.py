@@ -195,78 +195,103 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
 
     # OWL-ViT: update threshold dynamically without reloading the model.
     bundle.owl.threshold = threshold
-    detections = bundle.owl.predict(image, texts=[text])
-    if not detections:
+    raw_detections = bundle.owl.predict(image, texts=[text])
+    if not raw_detections:
         return {
             "success": False,
             "error": f"No OWL detections for prompt '{text}' at threshold {threshold}",
         }
 
-    detection = max(detections, key=lambda d: d["score"])
-    detection["bbox"] = [
-        max(0.0, min(float(image.width - 1), float(detection["bbox"][0]))),
-        max(0.0, min(float(image.height - 1), float(detection["bbox"][1]))),
-        max(0.0, min(float(image.width - 1), float(detection["bbox"][2]))),
-        max(0.0, min(float(image.height - 1), float(detection["bbox"][3]))),
-    ]
-    draw_boundary(image, detection, output_boundary)
+    # Keep the best-scoring box per label and clamp to image bounds.
+    by_label: dict = {}
+    for det in raw_detections:
+        lbl = det["text"]
+        if lbl not in by_label or det["score"] > by_label[lbl]["score"]:
+            by_label[lbl] = det
+    for det in by_label.values():
+        det["bbox"] = [
+            max(0.0, min(float(image.width - 1), float(det["bbox"][0]))),
+            max(0.0, min(float(image.height - 1), float(det["bbox"][1]))),
+            max(0.0, min(float(image.width - 1), float(det["bbox"][2]))),
+            max(0.0, min(float(image.height - 1), float(det["bbox"][3]))),
+        ]
 
-    points, point_labels = bbox_to_points(detection["bbox"])
+    # Order by score descending so the primary (highest-score) label is first.
+    label_order = sorted(by_label, key=lambda l: by_label[l]["score"], reverse=True)
+    primary = by_label[label_order[0]]
+    draw_boundary(image, primary, output_boundary)
+
+    # Encode image once; decode mask per label.
     bundle.sam.set_image(image)
-    mask, mask_iou, _ = bundle.sam.predict(points, point_labels)
-    mask_image = save_mask(mask, output_mask, mask_threshold)
 
-    if depth_image_path and output_depth_mask:
-        save_masked_depth(depth_image_path, mask_image, output_depth_mask)
-
+    base_pcd = Path(output_points) if output_points else None
     hotspot_map: dict = {}
-    points_count = 0
+    results_per_label = []
+    primary_mask_iou = None
 
-    if depth_image_path and camera_model_path and output_points:
-        map_points, camera_model = project_mask_to_map_points(
-            depth_image_path,
-            mask_image,
-            camera_model_path,
-            max_points,
-        )
-        points_count = int(len(map_points))
-        write_pcd(output_points, map_points)
-        normal = estimate_normal(map_points)
-        if output_hotspots:
-            # write_hotspot_json expects an args-like namespace.
-            args_ns = types.SimpleNamespace(
-                room_id=room_id,
-                merge_radius=merge_radius,
-                text=text,
-                output_points=output_points,
-            )
-            hotspot_map = write_hotspot_json(
-                output_hotspots,
-                args_ns,
-                detection,
-                mask_iou,
-                map_points,
-                normal,
-                camera_model,
-            )
+    for idx, label in enumerate(label_order):
+        det = by_label[label]
+        pts, pt_labels_sam = bbox_to_points(det["bbox"])
+        mask, mask_iou, _ = bundle.sam.predict(pts, pt_labels_sam)
+        if idx == 0:
+            primary_mask_iou = mask_iou
+        mask_image = save_mask(mask, output_mask, mask_threshold)
 
+        if idx == 0 and depth_image_path and output_depth_mask:
+            save_masked_depth(depth_image_path, mask_image, output_depth_mask)
+
+        pcd_path = str(base_pcd.with_suffix("")) + f"_{idx}.pcd" if base_pcd else ""
+        centroid = [0.0, 0.0, 0.0]
+        pts_count = 0
+
+        if depth_image_path and camera_model_path and pcd_path:
+            map_points, camera_model = project_mask_to_map_points(
+                depth_image_path, mask_image, camera_model_path, max_points)
+            pts_count = int(len(map_points))
+            write_pcd(pcd_path, map_points)
+            if pts_count > 0:
+                centroid = map_points.mean(axis=0).tolist()
+            normal = estimate_normal(map_points)
+            if output_hotspots:
+                args_ns = types.SimpleNamespace(
+                    room_id=room_id,
+                    merge_radius=merge_radius,
+                    text=label,
+                    output_points=pcd_path,
+                )
+                hotspot_map = write_hotspot_json(
+                    output_hotspots, args_ns, det, mask_iou, map_points, normal, camera_model)
+
+        results_per_label.append({
+            "label": label,
+            "score": float(det["score"]),
+            "bbox": det["bbox"],
+            "centroid": centroid,
+            "points_count": pts_count,
+            "output_points": pcd_path,
+        })
+
+    best = results_per_label[0]
     return {
         "success": True,
         "image": str(image_path),
         "depth_image": depth_image_path,
         "text": text,
-        "bbox": detection["bbox"],
-        "score": detection["score"],
-        "label": detection["label"],
-        "mask_iou": mask_iou.detach().cpu().numpy().tolist(),
+        # Legacy single-detection fields kept for backward compatibility.
+        "bbox": best["bbox"],
+        "score": best["score"],
+        "label": best["label"],
+        "mask_iou": primary_mask_iou.detach().cpu().numpy().tolist(),
         "output_boundary": str(output_boundary),
         "output_mask": str(output_mask),
         "output_depth_mask": output_depth_mask,
         "camera_model": camera_model_path,
-        "output_points": output_points,
+        "output_points": best["output_points"],
         "output_hotspots": output_hotspots,
-        "points_count": points_count,
+        "points_count": best["points_count"],
         "hotspot_map": hotspot_map,
+        # All per-label results — C++ uses these directly.
+        "detections": results_per_label,
     }
 
 
@@ -299,7 +324,15 @@ def _handle_client(conn: socket.socket, bundle: ModelBundle, config: dict) -> No
             resp = {"success": False, "error": str(exc)}
 
         if resp.get("success"):
-            log.info("Done: score=%.3f points=%d", resp.get("score", 0.0), resp.get("points_count", 0))
+            dets = resp.get("detections", [])
+            if dets:
+                for d in dets:
+                    log.info("Done: label=%s score=%.3f centroid=(%.2f,%.2f,%.2f) points=%d",
+                        d["label"], d["score"],
+                        d["centroid"][0], d["centroid"][1], d["centroid"][2],
+                        d["points_count"])
+            else:
+                log.info("Done: score=%.3f points=%d", resp.get("score", 0.0), resp.get("points_count", 0))
         else:
             log.error("Failed: %s", resp.get("error", "unknown"))
 
