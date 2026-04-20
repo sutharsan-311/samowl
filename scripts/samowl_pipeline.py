@@ -272,20 +272,24 @@ def estimate_normal(points):
 def write_pcd(path, points):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        handle.write("# .PCD v0.7 - Point Cloud Data file format\n")
-        handle.write("VERSION 0.7\n")
-        handle.write("FIELDS x y z\n")
-        handle.write("SIZE 4 4 4\n")
-        handle.write("TYPE F F F\n")
-        handle.write("COUNT 1 1 1\n")
-        handle.write(f"WIDTH {len(points)}\n")
-        handle.write("HEIGHT 1\n")
-        handle.write("VIEWPOINT 0 0 0 1 0 0 0\n")
-        handle.write(f"POINTS {len(points)}\n")
-        handle.write("DATA ascii\n")
-        for point in points:
-            handle.write(f"{point[0]:.6f} {point[1]:.6f} {point[2]:.6f}\n")
+    pts = np.array(points, dtype=np.float32)
+    n = len(pts)
+    header = (
+        "# .PCD v0.7 - Point Cloud Data file format\n"
+        "VERSION 0.7\n"
+        "FIELDS x y z\n"
+        "SIZE 4 4 4\n"
+        "TYPE F F F\n"
+        "COUNT 1 1 1\n"
+        f"WIDTH {n}\n"
+        "HEIGHT 1\n"
+        "VIEWPOINT 0 0 0 1 0 0 0\n"
+        f"POINTS {n}\n"
+        "DATA binary\n"
+    )
+    with open(path, "wb") as f:
+        f.write(header.encode("ascii"))
+        f.write(pts.tobytes())
 
 
 def project_mask_to_map_points(depth_path, mask_image, camera_model_path, max_points):
