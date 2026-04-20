@@ -67,15 +67,16 @@ class SceneQueryNode(Node):
     #  Queries                                                             #
     # ------------------------------------------------------------------ #
 
-    def closest(self, label: str):
-        """Return the node with matching label closest to the map origin, or None."""
+    def closest(self, label: str, reference: list = None) -> dict:
+        """Return the node with matching label closest to reference (map frame), or None."""
+        if reference is None:
+            reference = [0.0, 0.0, 0.0]
         candidates = [n for n in self._nodes if n.get('label') == label]
         if not candidates:
             return None
 
         def _dist(node):
-            x, y, z = node['position']
-            return math.sqrt(x * x + y * y + z * z)
+            return math.sqrt(sum((a - b) ** 2 for a, b in zip(node['position'], reference)))
 
         best = min(candidates, key=_dist)
         return {
