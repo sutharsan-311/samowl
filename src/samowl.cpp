@@ -849,9 +849,20 @@ public:
     }
   }
 
-  int last_status() const
+  int last_status() const { return last_status_; }
+
+  // Called from main() after rclcpp::spin() returns so SIGINT saves scan outputs.
+  void finalize()
   {
-    return last_status_;
+    if (finalized_.exchange(true)) {
+      return;
+    }
+    if (idle_timer_) {
+      idle_timer_->cancel();
+    }
+    RCLCPP_INFO(get_logger(), "[scan] Finalizing after shutdown — %d frames, %zu detections",
+      frame_count_, scan_detections_.size());
+    save_scan_outputs();
   }
 
 private:
@@ -972,15 +983,7 @@ private:
 
   void finalize_and_shutdown()
   {
-    if (finalized_.exchange(true)) {
-      return;
-    }
-    if (idle_timer_) {
-      idle_timer_->cancel();
-    }
-    RCLCPP_INFO(get_logger(), "[scan] Finalizing — %d frames processed, %zu detections",
-      frame_count_, scan_detections_.size());
-    save_scan_outputs();
+    finalize();
     std::thread([]() { rclcpp::shutdown(); }).detach();
   }
 
@@ -1323,6 +1326,11 @@ int main(int argc, char ** argv)
   rclcpp::init(ros_argc, ros_argv);
   auto node = std::make_shared<TopicRunner>(options, "");
   rclcpp::spin(node);
+  // Ensure scan outputs are saved even when spin exits via SIGINT before the
+  // idle timer fires.  finalize() is idempotent — a no-op if already called.
+  if (options.mode == "scan") {
+    node->finalize();
+  }
   const int status = node->last_status();
   if (rclcpp::ok()) {
     rclcpp::shutdown();
