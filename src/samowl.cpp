@@ -37,8 +37,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -537,6 +539,13 @@ static int socket_call(
     return EXIT_FAILURE;
   }
 
+  // 120s receive timeout — prevents indefinite hang if the GPU stalls mid-inference.
+  struct timeval tv{};
+  tv.tv_sec = 120;
+  if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+    std::cerr << "socket_call: setsockopt(SO_RCVTIMEO): " << std::strerror(errno) << "\n";
+  }
+
   // Send request terminated by a newline.
   const std::string message = request_json + "\n";
   std::size_t sent = 0;
@@ -826,7 +835,10 @@ public:
               "[scan] No frames received in 30 s — check topic names and bag playback. "
               "Expected RGB='%s' depth='%s'",
               options_.rgb_topic.c_str(), options_.depth_topic.c_str());
-            rclcpp::shutdown();
+            // Detach shutdown to avoid deadlock: calling rclcpp::shutdown() directly
+            // from a timer callback while the single-threaded executor is spinning
+            // can deadlock on the executor's internal mutex in ROS2 Humble.
+            std::thread([]() { rclcpp::shutdown(); }).detach();
           }
         });
     }
@@ -955,7 +967,7 @@ private:
     RCLCPP_INFO(get_logger(), "[scan] Finalizing — %d frames processed, %zu detections",
       frame_count_, scan_detections_.size());
     save_scan_outputs();
-    rclcpp::shutdown();
+    std::thread([]() { rclcpp::shutdown(); }).detach();
   }
 
   void save_scan_outputs()
@@ -1058,13 +1070,23 @@ private:
     sg["frames_dropped"]    = total_frame_count_ - frame_count_;
 
     const fs::path sg_path = out_dir / "scene_graph.json";
-    std::ofstream sg_out(sg_path);
-    if (sg_out) {
+    const fs::path sg_tmp  = fs::path(sg_path.string() + ".tmp");
+    {
+      std::ofstream sg_out(sg_tmp);
+      if (!sg_out) {
+        RCLCPP_ERROR(get_logger(), "[scan] Failed to write %s", sg_tmp.string().c_str());
+        return;
+      }
       sg_out << sg.dump(2) << "\n";
+    }
+    std::error_code rename_ec;
+    fs::rename(sg_tmp, sg_path, rename_ec);
+    if (rename_ec) {
+      RCLCPP_ERROR(get_logger(), "[scan] Failed to rename scene_graph.json: %s",
+        rename_ec.message().c_str());
+    } else {
       RCLCPP_INFO(get_logger(), "[scan] Saved scene_graph.json (%zu nodes, %zu edges)",
         node_list.size(), edges_arr.size());
-    } else {
-      RCLCPP_ERROR(get_logger(), "[scan] Failed to write %s", sg_path.string().c_str());
     }
   }
 
@@ -1248,6 +1270,16 @@ int main(int argc, char ** argv)
     to_abs(options.output_points);
     to_abs(options.output_hotspots);
     to_abs(options.output_dir);
+  }
+
+  // In scan mode, remove any hotspot file left over from a prior run so
+  // fresh scans never inherit phantom objects.
+  if (options.mode == "scan" && !options.output_hotspots.empty()) {
+    std::error_code ec;
+    fs::remove(options.output_hotspots, ec);
+    if (!ec) {
+      std::cerr << "[scan] Removed stale hotspot file: " << options.output_hotspots << "\n";
+    }
   }
 
   // Find the daemon script (used to launch the persistent Python process).
