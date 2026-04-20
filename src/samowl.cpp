@@ -961,7 +961,12 @@ private:
           // Multi-label path: centroids come directly from daemon JSON response.
           for (const auto & det : result.detections) {
             if (options_.mode == "scan") {
-              scan_detections_.push_back({det.label, det.score, det.cx, det.cy, det.cz, ts});
+              constexpr float kEps = 1e-3f;
+              const bool at_origin =
+                std::abs(det.cx) < kEps && std::abs(det.cy) < kEps && std::abs(det.cz) < kEps;
+              if (!at_origin) {
+                scan_detections_.push_back({det.label, det.score, det.cx, det.cy, det.cz, ts});
+              }
               RCLCPP_DEBUG(get_logger(), "[scan] frame=%d label=%s score=%.3f pos=(%.2f,%.2f,%.2f)",
                 frame_count_, det.label.c_str(), det.score, det.cx, det.cy, det.cz);
             }
