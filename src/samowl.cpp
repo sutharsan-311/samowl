@@ -794,14 +794,6 @@ public:
     objects_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>("/samowl/objects", sensor_qos);
     detections_pub_ = create_publisher<std_msgs::msg::String>("/samowl/detections", rclcpp::QoS(10));
 
-    if (options_.mode == "scan") {
-      idle_timer_ = create_wall_timer(
-        std::chrono::milliseconds(options_.scan_idle_timeout_ms),
-        std::bind(&TopicRunner::finalize_and_shutdown, this));
-      RCLCPP_INFO(get_logger(), "[scan] Idle timeout: %d ms → will finalize when bag ends",
-        options_.scan_idle_timeout_ms);
-    }
-
     RCLCPP_INFO(get_logger(), "Waiting for RGB '%s', depth '%s', camera info '%s', TF to '%s'",
       options_.rgb_topic.c_str(),
       options_.depth_topic.c_str(),
@@ -903,7 +895,13 @@ private:
 
   void reset_idle_timer()
   {
-    if (idle_timer_) {
+    if (!idle_timer_) {
+      idle_timer_ = create_wall_timer(
+        std::chrono::milliseconds(options_.scan_idle_timeout_ms),
+        std::bind(&TopicRunner::finalize_and_shutdown, this));
+      RCLCPP_INFO(get_logger(), "[scan] Idle timeout armed: %d ms",
+        options_.scan_idle_timeout_ms);
+    } else {
       idle_timer_->reset();
     }
   }
