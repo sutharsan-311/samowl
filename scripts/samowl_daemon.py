@@ -252,7 +252,7 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
             if pts_count > 0:
                 centroid = map_points.mean(axis=0).tolist()
             normal = estimate_normal(map_points)
-            if output_hotspots:
+            if output_hotspots and pts_count >= 10:
                 args_ns = types.SimpleNamespace(
                     room_id=room_id,
                     merge_radius=merge_radius,
