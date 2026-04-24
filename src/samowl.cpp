@@ -860,6 +860,9 @@ public:
       options_.depth_topic.c_str(),
       options_.camera_info_topic.c_str(),
       options_.map_frame.c_str());
+    RCLCPP_INFO(get_logger(),
+      "Bag replay: run with '--ros-args -p use_sim_time:=true' and 'ros2 bag play --clock' "
+      "so TF timestamps match image stamps");
 
     if (options_.mode == "scan") {
       startup_watchdog_ = create_wall_timer(
@@ -926,11 +929,22 @@ private:
           rgb_msg->header.stamp,
           tf2::durationFromSec(0.25));
       } catch (const tf2::ExtrapolationException &) {
-        // Bag playback can produce slight TF timing skew; fall back to latest.
+        // Bag playback timing skew: fall back to latest available transform.
+        // NOTE: accurate bag replay requires --ros-args -p use_sim_time:=true
+        // and ros2 bag play --clock so the TF buffer uses bag timestamps.
         transform = tf_buffer_.lookupTransform(
           options_.map_frame,
           rgb_msg->header.frame_id,
           tf2::TimePointZero);
+      } catch (const tf2::TransformException & ex) {
+        RCLCPP_WARN(get_logger(),
+          "TF lookup failed (%s → %s): %s — skipping frame",
+          rgb_msg->header.frame_id.c_str(), options_.map_frame.c_str(), ex.what());
+        processing_ = false;
+        if (options_.mode == "scan") {
+          reset_idle_timer();
+        }
+        return;
       }
 
       cv::imwrite(rgb_path.string(), rgb_to_bgr(rgb_msg));
