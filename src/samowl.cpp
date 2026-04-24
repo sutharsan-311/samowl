@@ -692,13 +692,25 @@ bool parse_response(const std::string & s, ParsedResult & out)
 // If result_out is non-null it is populated with the parsed response on success.
 int run_python(
   const Options & options,
-  const std::string & /*script_unused*/,
+  const std::string & daemon_script,
   ParsedResult * result_out = nullptr)
 {
   const std::string request = build_request_json(options);
   std::string response;
 
-  const int rc = socket_call(options.daemon_socket, request, response);
+  int rc = socket_call(options.daemon_socket, request, response);
+  if (rc != 0 && g_daemon_pid > 0 && !daemon_script.empty()) {
+    // Check whether the daemon process has exited; if so, restart it once.
+    int wstatus = 0;
+    if (::waitpid(g_daemon_pid, &wstatus, WNOHANG) == g_daemon_pid) {
+      g_daemon_pid = -1;
+      std::cerr << "run_python: daemon exited (code " << WEXITSTATUS(wstatus)
+                << ") — attempting restart\n";
+      if (start_daemon(options, daemon_script) == 0) {
+        rc = socket_call(options.daemon_socket, request, response);
+      }
+    }
+  }
   if (rc != 0) {
     std::cerr << "run_python: failed to contact daemon at " << options.daemon_socket << "\n";
     return EXIT_FAILURE;
