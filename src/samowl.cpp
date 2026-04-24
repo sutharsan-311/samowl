@@ -1402,16 +1402,37 @@ int main(int argc, char ** argv)
   int ros_argc = 0;
   char ** ros_argv = nullptr;
   rclcpp::init(ros_argc, ros_argv);
+
+  // Install SIGTERM handler after rclcpp::init so rclcpp's SIGINT handler is
+  // already in place and we don't clobber it.  SIGTERM (systemd, docker stop)
+  // is not handled by rclcpp by default; without this, the process terminates
+  // immediately and finalize() never runs.
+  std::signal(SIGTERM, [](int) { rclcpp::shutdown(); });
+
   auto node = std::make_shared<TopicRunner>(options, "");
-  rclcpp::spin(node);
-  // Ensure scan outputs are saved even when spin exits via SIGINT before the
-  // idle timer fires.  finalize() is idempotent — a no-op if already called.
+  try {
+    rclcpp::spin(node);
+  } catch (const std::exception & ex) {
+    RCLCPP_ERROR(node->get_logger(), "Executor exception: %s", ex.what());
+  }
+
+  // finalize() is idempotent — always safe to call; writes scan outputs even
+  // when spin exits early via exception, SIGINT, SIGTERM, or watchdog timeout.
   if (options.mode == "scan") {
     node->finalize();
   }
+
   const int status = node->last_status();
   if (rclcpp::ok()) {
     rclcpp::shutdown();
   }
+
+  // Reap daemon so no orphan process is left behind after the scan.
+  if (g_daemon_pid > 0) {
+    ::kill(g_daemon_pid, SIGTERM);
+    ::waitpid(g_daemon_pid, nullptr, 0);
+    g_daemon_pid = -1;
+  }
+
   return status;
 }
