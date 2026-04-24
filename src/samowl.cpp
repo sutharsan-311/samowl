@@ -842,9 +842,9 @@ public:
     tf_listener_(tf_buffer_)
   {
     fs::create_directories(options_.work_dir);
-    rgb_sub_.subscribe(this, options_.rgb_topic);
-    depth_sub_.subscribe(this, options_.depth_topic);
-    camera_info_sub_.subscribe(this, options_.camera_info_topic);
+    rgb_sub_.subscribe(this, options_.rgb_topic, rmw_qos_profile_sensor_data);
+    depth_sub_.subscribe(this, options_.depth_topic, rmw_qos_profile_sensor_data);
+    camera_info_sub_.subscribe(this, options_.camera_info_topic, rmw_qos_profile_sensor_data);
     sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(
       SyncPolicy(10), rgb_sub_, depth_sub_, camera_info_sub_);
     sync_->registerCallback(&TopicRunner::callback, this);
