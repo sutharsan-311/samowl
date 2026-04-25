@@ -207,3 +207,21 @@ class SceneGraph:
                         results[query['id']] = query
 
         return list(results.values())
+
+    def relative_position(self, node_a: Dict, node_b: Dict) -> str:
+        """Return directional string describing position of node_b relative to node_a.
+
+        XY plane only, ROS2 REP-103 convention:
+        - X = forward, Y = left
+        - Returns: 'in_front', 'behind', 'left', 'right'
+        """
+        pa = node_a['position'][:2]
+        pb = node_b['position'][:2]
+
+        dx = pb[0] - pa[0]  # forward/back
+        dy = pb[1] - pa[1]  # left/right
+
+        if abs(dx) >= abs(dy):
+            return 'in_front' if dx > 0 else 'behind'
+        else:
+            return 'left' if dy > 0 else 'right'
