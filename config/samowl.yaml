@@ -50,3 +50,11 @@ outputs:
 # Depth sensor settings
 depth:
   scale: 0.001  # Depth pixel to metres conversion factor
+  min: 0.1      # Minimum valid depth in metres
+  max: 10.0     # Maximum valid depth in metres
+
+# Scene graph construction parameters
+graph:
+  near_threshold: 1.0      # C++ scan edge building + scene_graph_node.py
+  match_threshold: 0.6     # scene_graph_node.py node merge
+  create_threshold: 0.5    # scene_graph_node.py node creation

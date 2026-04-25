@@ -79,6 +79,9 @@ struct Options
   std::string mode{"live"};           // "live" or "scan"
   std::string output_dir{"/output"};  // scan mode: directory for final JSON output
   double depth_scale{0.001};
+  double near_threshold{1.0};
+  double depth_min{0.1};
+  double depth_max{10.0};
   int daemon_startup_timeout_ms{30000};
   int daemon_poll_interval_ms{100};
   int scan_idle_timeout_ms{5000};  // scan mode: ms of silence → finalize
@@ -400,6 +403,12 @@ void load_config(Options & opts, const std::string & path)
       if (dep["scale"]) {
         opts.depth_scale = dep["scale"].as<double>();
       }
+      if (dep["min"]) { opts.depth_min = dep["min"].as<double>(); }
+      if (dep["max"]) { opts.depth_max = dep["max"].as<double>(); }
+    }
+    if (cfg["graph"]) {
+      const auto & g = cfg["graph"];
+      if (g["near_threshold"])  { opts.near_threshold  = g["near_threshold"].as<double>(); }
     }
   } catch (const YAML::Exception & e) {
     std::cerr << "Warning: could not parse config " << path << ": " << e.what() << "\n";
@@ -767,6 +776,8 @@ void write_camera_model(
   j["cx"]          = info_msg->k[2];
   j["cy"]          = info_msg->k[5];
   j["depth_scale"] = options.depth_scale;
+  j["depth_min"]   = options.depth_min;
+  j["depth_max"]   = options.depth_max;
   j["source_frame"]  = transform.header.frame_id;
   j["camera_frame"]  = transform.child_frame_id;
   j["map_frame"]     = options.map_frame;
@@ -892,6 +903,9 @@ public:
             std::thread([]() { rclcpp::shutdown(); }).detach();
           }
         });
+      periodic_flush_timer_ = create_wall_timer(
+        std::chrono::seconds(10),
+        [this]() { save_scan_outputs(false); });
     }
   }
 
@@ -906,9 +920,12 @@ public:
     if (idle_timer_) {
       idle_timer_->cancel();
     }
+    if (periodic_flush_timer_) {
+      periodic_flush_timer_->cancel();
+    }
     RCLCPP_INFO(get_logger(), "[scan] Finalizing after shutdown — %d frames, %zu detections",
       frame_count_, scan_detections_.size());
-    save_scan_outputs();
+    save_scan_outputs(true);
   }
 
 private:
@@ -1020,7 +1037,12 @@ private:
             float cx, cy, cz;
             compute_centroid(cloud, cx, cy, cz);
             if (options_.mode == "scan") {
-              scan_detections_.push_back({options_.text, result.score, cx, cy, cz, ts});
+              constexpr float kEps = 1e-3f;
+              if (!(std::abs(cx) < kEps && std::abs(cy) < kEps && std::abs(cz) < kEps)) {
+                scan_detections_.push_back({options_.text, result.score, cx, cy, cz, ts});
+              } else {
+                RCLCPP_WARN(get_logger(), "[scan] legacy: skipping origin centroid for '%s'", options_.text.c_str());
+              }
             }
             publish_objects(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
             publish_detections(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
@@ -1077,7 +1099,7 @@ private:
     std::thread([]() { rclcpp::shutdown(); }).detach();
   }
 
-  void save_scan_outputs()
+  void save_scan_outputs(bool is_final = false)
   {
     using json = nlohmann::json;
 
@@ -1156,7 +1178,7 @@ private:
 
     // Build "near" edges — matches NEAR_THRESHOLD used in scene_graph_node.py.
     json edges_arr = json::array();
-    const float near_thresh = 1.5f;
+    const float near_thresh = static_cast<float>(options_.near_threshold);
     for (size_t i = 0; i < node_list.size(); ++i) {
       for (size_t j = i + 1; j < node_list.size(); ++j) {
         const auto & a = node_list[i];
@@ -1170,6 +1192,8 @@ private:
     }
 
     json sg;
+    sg["schema_version"]    = "1.1";
+    sg["scan_complete"]     = is_final;
     sg["nodes"] = nodes_arr;
     sg["edges"] = edges_arr;
     sg["frame_count"]       = frame_count_;
@@ -1347,6 +1371,7 @@ private:
   std::vector<DetectionRecord> scan_detections_;
   rclcpp::TimerBase::SharedPtr idle_timer_;
   rclcpp::TimerBase::SharedPtr startup_watchdog_;
+  rclcpp::TimerBase::SharedPtr periodic_flush_timer_;
 };
 }  // namespace
 
