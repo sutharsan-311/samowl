@@ -1,0 +1,3126 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {
+    "hyperedges": [
+      {
+        "id": "daemon_triple",
+        "label": "Persistent Daemon Architecture",
+        "nodes": [
+          "samowl_daemon_bundle",
+          "samowl_daemon_socket",
+          "samowl_daemon_inference"
+        ],
+        "relation": "implement",
+        "confidence": "EXTRACTED",
+        "confidence_score": 0.95
+      },
+      {
+        "id": "scene_graph_pipeline",
+        "label": "Scene Graph Detection + Visualization Pipeline",
+        "nodes": [
+          "scene_graph_node_class",
+          "scene_graph_node_sub",
+          "scene_graph_marker_pub",
+          "samowl_daemon_inference"
+        ],
+        "relation": "participate_in",
+        "confidence": "INFERRED",
+        "confidence_score": 0.85
+      },
+      {
+        "id": "query_subsystem",
+        "label": "Scene Query Subsystem",
+        "nodes": [
+          "scene_query_node_class",
+          "scene_query_graph_sub",
+          "scene_query_find_near",
+          "scene_query_closest"
+        ],
+        "relation": "form",
+        "confidence": "EXTRACTED",
+        "confidence_score": 0.9
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "label": "scene_graph_node.py",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L1",
+      "id": "scene_graph_node",
+      "community": 4
+    },
+    {
+      "label": "_dist()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L24",
+      "id": "scene_graph_node_dist",
+      "community": 4
+    },
+    {
+      "label": "_update_position()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L28",
+      "id": "scene_graph_node_update_position",
+      "community": 4
+    },
+    {
+      "label": "SceneGraphNode",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L38",
+      "id": "scene_graph_node_scenegraphnode",
+      "community": 4
+    },
+    {
+      "label": "Node",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "id": "node",
+      "community": 5
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L39",
+      "id": "scene_graph_node_scenegraphnode_init",
+      "community": 4
+    },
+    {
+      "label": "._on_detection()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L66",
+      "id": "scene_graph_node_scenegraphnode_on_detection",
+      "community": 4
+    },
+    {
+      "label": "._find_best_match()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L90",
+      "id": "scene_graph_node_scenegraphnode_find_best_match",
+      "community": 4
+    },
+    {
+      "label": "._upsert_node()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L103",
+      "id": "scene_graph_node_scenegraphnode_upsert_node",
+      "community": 4
+    },
+    {
+      "label": "._cleanup_nodes()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L139",
+      "id": "scene_graph_node_scenegraphnode_cleanup_nodes",
+      "community": 4
+    },
+    {
+      "label": "._rebuild_edges()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L146",
+      "id": "scene_graph_node_scenegraphnode_rebuild_edges",
+      "community": 4
+    },
+    {
+      "label": "._publish_graph()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L166",
+      "id": "scene_graph_node_scenegraphnode_publish_graph",
+      "community": 4
+    },
+    {
+      "label": "._publish_markers()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L176",
+      "id": "scene_graph_node_scenegraphnode_publish_markers",
+      "community": 4
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L257",
+      "id": "scene_graph_node_main",
+      "community": 4
+    },
+    {
+      "label": "Weighted blend: lean toward the new observation, keep some history.      alpha r",
+      "file_type": "rationale",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L29",
+      "id": "scene_graph_node_rationale_29",
+      "community": 4
+    },
+    {
+      "label": "Return (node_id, distance) of the closest same-label node, or (None, inf).",
+      "file_type": "rationale",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L91",
+      "id": "scene_graph_node_rationale_91",
+      "community": 4
+    },
+    {
+      "label": "Recompute all undirected \"near\" edges from scratch.",
+      "file_type": "rationale",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L147",
+      "id": "scene_graph_node_rationale_147",
+      "community": 4
+    },
+    {
+      "label": "scene_query_node.py",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L1",
+      "id": "scene_query_node",
+      "community": 5
+    },
+    {
+      "label": "SceneQueryNode",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L12",
+      "id": "scene_query_node_scenequerynode",
+      "community": 5
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L13",
+      "id": "scene_query_node_scenequerynode_init",
+      "community": 5
+    },
+    {
+      "label": "._on_graph()",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L32",
+      "id": "scene_query_node_scenequerynode_on_graph",
+      "community": 5
+    },
+    {
+      "label": ".closest()",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L70",
+      "id": "scene_query_node_scenequerynode_closest",
+      "community": 5
+    },
+    {
+      "label": ".find_near()",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L88",
+      "id": "scene_query_node_scenequerynode_find_near",
+      "community": 5
+    },
+    {
+      "label": ".find_by_label()",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L112",
+      "id": "scene_query_node_scenequerynode_find_by_label",
+      "community": 5
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L125",
+      "id": "scene_query_node_main",
+      "community": 5
+    },
+    {
+      "label": "Return the node with matching label closest to reference (map frame), or None.",
+      "file_type": "rationale",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L71",
+      "id": "scene_query_node_rationale_71",
+      "community": 5
+    },
+    {
+      "label": "Return pairs of node IDs where one has label_a, the other label_b, and a near ed",
+      "file_type": "rationale",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L89",
+      "id": "scene_query_node_rationale_89",
+      "community": 5
+    },
+    {
+      "label": "Return all nodes whose label matches, as clean output dicts.",
+      "file_type": "rationale",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L113",
+      "id": "scene_query_node_rationale_113",
+      "community": 5
+    },
+    {
+      "label": "samowl_daemon.py",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L1",
+      "id": "samowl_daemon",
+      "community": 2
+    },
+    {
+      "label": "_import_pipeline()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L71",
+      "id": "samowl_daemon_import_pipeline",
+      "community": 2
+    },
+    {
+      "label": "ModelBundle",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L123",
+      "id": "samowl_daemon_modelbundle",
+      "community": 2
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L124",
+      "id": "samowl_daemon_modelbundle_init",
+      "community": 2
+    },
+    {
+      "label": "get_param()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L135",
+      "id": "samowl_daemon_get_param",
+      "community": 2
+    },
+    {
+      "label": "_run_inference()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L155",
+      "id": "samowl_daemon_run_inference",
+      "community": 2
+    },
+    {
+      "label": "_handle_client()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L301",
+      "id": "samowl_daemon_handle_client",
+      "community": 2
+    },
+    {
+      "label": "serve()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L345",
+      "id": "samowl_daemon_serve",
+      "community": 2
+    },
+    {
+      "label": "validate_config()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L372",
+      "id": "samowl_daemon_validate_config",
+      "community": 2
+    },
+    {
+      "label": "load_config()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L386",
+      "id": "samowl_daemon_load_config",
+      "community": 2
+    },
+    {
+      "label": "parse_args()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L401",
+      "id": "samowl_daemon_parse_args",
+      "community": 2
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L446",
+      "id": "samowl_daemon_main",
+      "community": 2
+    },
+    {
+      "label": "Return the samowl_pipeline module, searching the usual locations.",
+      "file_type": "rationale",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L72",
+      "id": "samowl_daemon_rationale_72",
+      "community": 2
+    },
+    {
+      "label": "Resolve a parameter with precedence: request JSON > YAML config > hardcoded defa",
+      "file_type": "rationale",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L136",
+      "id": "samowl_daemon_rationale_136",
+      "community": 2
+    },
+    {
+      "label": "Run the full OWL-ViT + SAM pipeline for one request.      Returns a dict with ke",
+      "file_type": "rationale",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L156",
+      "id": "samowl_daemon_rationale_156",
+      "community": 2
+    },
+    {
+      "label": "Read one newline-delimited JSON request; write one JSON response.",
+      "file_type": "rationale",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L302",
+      "id": "samowl_daemon_rationale_302",
+      "community": 2
+    },
+    {
+      "label": "Accept connections on a Unix socket until the process is killed.",
+      "file_type": "rationale",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L346",
+      "id": "samowl_daemon_rationale_346",
+      "community": 2
+    },
+    {
+      "label": "Warn on obviously invalid config values; never raises so startup is not blocked.",
+      "file_type": "rationale",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L373",
+      "id": "samowl_daemon_rationale_373",
+      "community": 2
+    },
+    {
+      "label": "Load YAML config file, returning empty dict on any error or if YAML unavailable.",
+      "file_type": "rationale",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L387",
+      "id": "samowl_daemon_rationale_387",
+      "community": 2
+    },
+    {
+      "label": "samowl_pipeline.py",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L1",
+      "id": "samowl_pipeline",
+      "community": 0
+    },
+    {
+      "label": "_load_nanoowl_encoder()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L19",
+      "id": "samowl_pipeline_load_nanoowl_encoder",
+      "community": 6
+    },
+    {
+      "label": "NanoOwlPredictor",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L30",
+      "id": "samowl_pipeline_nanoowlpredictor",
+      "community": 6
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L33",
+      "id": "samowl_pipeline_nanoowlpredictor_init",
+      "community": 6
+    },
+    {
+      "label": "._encode_text()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L44",
+      "id": "samowl_pipeline_nanoowlpredictor_encode_text",
+      "community": 6
+    },
+    {
+      "label": ".predict()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L55",
+      "id": "samowl_pipeline_nanoowlpredictor_predict",
+      "community": 6
+    },
+    {
+      "label": "load_mask_decoder_engine()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L100",
+      "id": "samowl_pipeline_load_mask_decoder_engine",
+      "community": 0
+    },
+    {
+      "label": "load_image_encoder_engine()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L118",
+      "id": "samowl_pipeline_load_image_encoder_engine",
+      "community": 0
+    },
+    {
+      "label": "preprocess_image()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L130",
+      "id": "samowl_pipeline_preprocess_image",
+      "community": 0
+    },
+    {
+      "label": "preprocess_points()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L154",
+      "id": "samowl_pipeline_preprocess_points",
+      "community": 0
+    },
+    {
+      "label": "run_mask_decoder()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L159",
+      "id": "samowl_pipeline_run_mask_decoder",
+      "community": 0
+    },
+    {
+      "label": "upscale_mask()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L178",
+      "id": "samowl_pipeline_upscale_mask",
+      "community": 0
+    },
+    {
+      "label": "Predictor",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L189",
+      "id": "samowl_pipeline_predictor",
+      "community": 0
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L190",
+      "id": "samowl_pipeline_predictor_init",
+      "community": 0
+    },
+    {
+      "label": ".set_image()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L195",
+      "id": "samowl_pipeline_predictor_set_image",
+      "community": 0
+    },
+    {
+      "label": ".predict()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L200",
+      "id": "samowl_pipeline_predictor_predict",
+      "community": 0
+    },
+    {
+      "label": "resolve_existing_path()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L213",
+      "id": "samowl_pipeline_resolve_existing_path",
+      "community": 0
+    },
+    {
+      "label": "bbox_to_points()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L239",
+      "id": "samowl_pipeline_bbox_to_points",
+      "community": 0
+    },
+    {
+      "label": "draw_boundary()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L247",
+      "id": "samowl_pipeline_draw_boundary",
+      "community": 0
+    },
+    {
+      "label": "save_mask()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L263",
+      "id": "samowl_pipeline_save_mask",
+      "community": 0
+    },
+    {
+      "label": "save_masked_depth()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L270",
+      "id": "samowl_pipeline_save_masked_depth",
+      "community": 0
+    },
+    {
+      "label": "quaternion_xyzw_to_matrix()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L280",
+      "id": "samowl_pipeline_quaternion_xyzw_to_matrix",
+      "community": 0
+    },
+    {
+      "label": "estimate_normal()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L296",
+      "id": "samowl_pipeline_estimate_normal",
+      "community": 0
+    },
+    {
+      "label": "write_pcd()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L308",
+      "id": "samowl_pipeline_write_pcd",
+      "community": 0
+    },
+    {
+      "label": "project_mask_to_map_points()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L331",
+      "id": "samowl_pipeline_project_mask_to_map_points",
+      "community": 0
+    },
+    {
+      "label": "next_hotspot_id()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L364",
+      "id": "samowl_pipeline_next_hotspot_id",
+      "community": 0
+    },
+    {
+      "label": "weighted_average()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L368",
+      "id": "samowl_pipeline_weighted_average",
+      "community": 0
+    },
+    {
+      "label": "write_hotspot_json()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L375",
+      "id": "samowl_pipeline_write_hotspot_json",
+      "community": 0
+    },
+    {
+      "label": "parse_args()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L446",
+      "id": "samowl_pipeline_parse_args",
+      "community": 0
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L476",
+      "id": "samowl_pipeline_main",
+      "community": 0
+    },
+    {
+      "label": "OWL-ViT with TRT vision encoder and cached PyTorch text encoder.",
+      "file_type": "rationale",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L31",
+      "id": "samowl_pipeline_rationale_31",
+      "community": 6
+    },
+    {
+      "label": "samowl.cpp",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L1",
+      "id": "samowl",
+      "community": 3
+    },
+    {
+      "label": "print_usage()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L111",
+      "id": "samowl_print_usage",
+      "community": 3
+    },
+    {
+      "label": "read_value()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L150",
+      "id": "samowl_read_value",
+      "community": 3
+    },
+    {
+      "label": "derive_camera_info_topic()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L160",
+      "id": "samowl_derive_camera_info_topic",
+      "community": 3
+    },
+    {
+      "label": "parse_args()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L171",
+      "id": "samowl_parse_args",
+      "community": 3
+    },
+    {
+      "label": "find_script()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L281",
+      "id": "samowl_find_script",
+      "community": 3
+    },
+    {
+      "label": "find_config()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L311",
+      "id": "samowl_find_config",
+      "community": 3
+    },
+    {
+      "label": "load_config()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L331",
+      "id": "samowl_load_config",
+      "community": 3
+    },
+    {
+      "label": "start_daemon()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L417",
+      "id": "samowl_start_daemon",
+      "community": 3
+    },
+    {
+      "label": "build_request_json()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L508",
+      "id": "samowl_build_request_json",
+      "community": 3
+    },
+    {
+      "label": "socket_call()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L530",
+      "id": "samowl_socket_call",
+      "community": 3
+    },
+    {
+      "label": "parse_response()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L613",
+      "id": "samowl_parse_response",
+      "community": 3
+    },
+    {
+      "label": "run_python()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L693",
+      "id": "samowl_run_python",
+      "community": 3
+    },
+    {
+      "label": "write_camera_model()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L742",
+      "id": "samowl_write_camera_model",
+      "community": 3
+    },
+    {
+      "label": "rgb_to_bgr()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L771",
+      "id": "samowl_rgb_to_bgr",
+      "community": 3
+    },
+    {
+      "label": "depth_to_png_image()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L794",
+      "id": "samowl_depth_to_png_image",
+      "community": 3
+    },
+    {
+      "label": "TopicRunner",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L830",
+      "id": "samowl_topicrunner",
+      "community": 3
+    },
+    {
+      "label": ".TopicRunner()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L837",
+      "id": "samowl_topicrunner_topicrunner",
+      "community": 3
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L1327",
+      "id": "samowl_main",
+      "community": 3
+    },
+    {
+      "label": "SceneGraphNode (ROS2 Node)",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "line 38",
+      "id": "scene_graph_node_class",
+      "community": 1
+    },
+    {
+      "label": "Scene Graph Detection Subscription",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "line 50-54",
+      "id": "scene_graph_node_sub",
+      "community": 1
+    },
+    {
+      "label": "Scene Graph Publisher",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "line 56",
+      "id": "scene_graph_node_pub",
+      "community": 1
+    },
+    {
+      "label": "RViz MarkerArray Publisher",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "line 57-58",
+      "id": "scene_graph_marker_pub",
+      "community": 1
+    },
+    {
+      "label": "Scene Graph Node Upsert Logic",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "line 103-137",
+      "id": "scene_graph_upsert",
+      "community": 1
+    },
+    {
+      "label": "Hysteresis Thresholds (Detection Matching)",
+      "file_type": "code",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "line 17-20",
+      "id": "scene_graph_hysteresis",
+      "community": 1
+    },
+    {
+      "label": "SceneQueryNode (ROS2 Node)",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "line 12",
+      "id": "scene_query_node_class",
+      "community": 1
+    },
+    {
+      "label": "Scene Graph Subscription (Query Node)",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "line 20-24",
+      "id": "scene_query_graph_sub",
+      "community": 1
+    },
+    {
+      "label": "find_near() Query Function",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "line 88-110",
+      "id": "scene_query_find_near",
+      "community": 1
+    },
+    {
+      "label": "closest() Query Function",
+      "file_type": "code",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "line 70-86",
+      "id": "scene_query_closest",
+      "community": 1
+    },
+    {
+      "label": "ModelBundle (Persistent Model Holder)",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "line 123-129",
+      "id": "samowl_daemon_bundle",
+      "community": 1
+    },
+    {
+      "label": "Persistent Daemon Inference",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "line 155-295",
+      "id": "samowl_daemon_inference",
+      "community": 1
+    },
+    {
+      "label": "Unix Socket Server (Daemon)",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "line 345-367",
+      "id": "samowl_daemon_socket",
+      "community": 1
+    },
+    {
+      "label": "YAML Config Loading (Daemon)",
+      "file_type": "code",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "line 386-398",
+      "id": "samowl_daemon_config",
+      "community": 1
+    },
+    {
+      "label": "NanoOwlPredictor (OWL-ViT Inference)",
+      "file_type": "code",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "line 30-93",
+      "id": "samowl_pipeline_nanoowl",
+      "community": 1
+    },
+    {
+      "label": "samowl main() \u2014 C++ ROS2 Executive",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "line 1-150",
+      "id": "samowl_cpp_main",
+      "community": 1
+    },
+    {
+      "label": "Options Struct (Configuration)",
+      "file_type": "code",
+      "source_file": "src/samowl.cpp",
+      "source_location": "line 50-87",
+      "id": "samowl_cpp_options",
+      "community": 1
+    },
+    {
+      "label": "CMake Build Target",
+      "file_type": "code",
+      "source_file": "CMakeLists.txt",
+      "source_location": "line 25-49",
+      "id": "samowl_cmake_build",
+      "community": 1
+    },
+    {
+      "label": "CMake Installation (Scripts & Models)",
+      "file_type": "code",
+      "source_file": "CMakeLists.txt",
+      "source_location": "line 51-61",
+      "id": "samowl_cmake_install",
+      "community": 1
+    },
+    {
+      "label": "C++ \u2194 Python Architecture (Hard Language Boundary)",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "line 28-40",
+      "id": "samowl_architecture",
+      "community": 1
+    },
+    {
+      "label": "File-Based IPC (/tmp/samowl)",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "line 44-48",
+      "id": "samowl_ipc_filesystem",
+      "community": 1
+    },
+    {
+      "label": "Fork/Exec Per-Frame Bottleneck",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "line 98-99",
+      "id": "samowl_bottleneck_fork",
+      "community": 7
+    },
+    {
+      "label": "Target: Persistent Python Daemon",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "line 108-109",
+      "id": "samowl_persistent_daemon",
+      "community": 7
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L24",
+      "weight": 1.0,
+      "_src": "scene_graph_node",
+      "_tgt": "scene_graph_node_dist",
+      "source": "scene_graph_node",
+      "target": "scene_graph_node_dist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L28",
+      "weight": 1.0,
+      "_src": "scene_graph_node",
+      "_tgt": "scene_graph_node_update_position",
+      "source": "scene_graph_node",
+      "target": "scene_graph_node_update_position",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L38",
+      "weight": 1.0,
+      "_src": "scene_graph_node",
+      "_tgt": "scene_graph_node_scenegraphnode",
+      "source": "scene_graph_node",
+      "target": "scene_graph_node_scenegraphnode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L257",
+      "weight": 1.0,
+      "_src": "scene_graph_node",
+      "_tgt": "scene_graph_node_main",
+      "source": "scene_graph_node",
+      "target": "scene_graph_node_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L33",
+      "weight": 1.0,
+      "_src": "scene_graph_node_update_position",
+      "_tgt": "scene_graph_node_dist",
+      "source": "scene_graph_node_dist",
+      "target": "scene_graph_node_update_position",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L97",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode_find_best_match",
+      "_tgt": "scene_graph_node_dist",
+      "source": "scene_graph_node_dist",
+      "target": "scene_graph_node_scenegraphnode_find_best_match",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L154",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode_rebuild_edges",
+      "_tgt": "scene_graph_node_dist",
+      "source": "scene_graph_node_dist",
+      "target": "scene_graph_node_scenegraphnode_rebuild_edges",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L125",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode_upsert_node",
+      "_tgt": "scene_graph_node_update_position",
+      "source": "scene_graph_node_update_position",
+      "target": "scene_graph_node_scenegraphnode_upsert_node",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L29",
+      "weight": 1.0,
+      "_src": "scene_graph_node_rationale_29",
+      "_tgt": "scene_graph_node_update_position",
+      "source": "scene_graph_node_update_position",
+      "target": "scene_graph_node_rationale_29",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L38",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode",
+      "_tgt": "node",
+      "source": "scene_graph_node_scenegraphnode",
+      "target": "node",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L39",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode",
+      "_tgt": "scene_graph_node_scenegraphnode_init",
+      "source": "scene_graph_node_scenegraphnode",
+      "target": "scene_graph_node_scenegraphnode_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L66",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode",
+      "_tgt": "scene_graph_node_scenegraphnode_on_detection",
+      "source": "scene_graph_node_scenegraphnode",
+      "target": "scene_graph_node_scenegraphnode_on_detection",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L90",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode",
+      "_tgt": "scene_graph_node_scenegraphnode_find_best_match",
+      "source": "scene_graph_node_scenegraphnode",
+      "target": "scene_graph_node_scenegraphnode_find_best_match",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L103",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode",
+      "_tgt": "scene_graph_node_scenegraphnode_upsert_node",
+      "source": "scene_graph_node_scenegraphnode",
+      "target": "scene_graph_node_scenegraphnode_upsert_node",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L139",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode",
+      "_tgt": "scene_graph_node_scenegraphnode_cleanup_nodes",
+      "source": "scene_graph_node_scenegraphnode",
+      "target": "scene_graph_node_scenegraphnode_cleanup_nodes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L146",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode",
+      "_tgt": "scene_graph_node_scenegraphnode_rebuild_edges",
+      "source": "scene_graph_node_scenegraphnode",
+      "target": "scene_graph_node_scenegraphnode_rebuild_edges",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L166",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode",
+      "_tgt": "scene_graph_node_scenegraphnode_publish_graph",
+      "source": "scene_graph_node_scenegraphnode",
+      "target": "scene_graph_node_scenegraphnode_publish_graph",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L176",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode",
+      "_tgt": "scene_graph_node_scenegraphnode_publish_markers",
+      "source": "scene_graph_node_scenegraphnode",
+      "target": "scene_graph_node_scenegraphnode_publish_markers",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L259",
+      "weight": 1.0,
+      "_src": "scene_graph_node_main",
+      "_tgt": "scene_graph_node_scenegraphnode",
+      "source": "scene_graph_node_scenegraphnode",
+      "target": "scene_graph_node_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L12",
+      "weight": 1.0,
+      "_src": "scene_query_node_scenequerynode",
+      "_tgt": "node",
+      "source": "node",
+      "target": "scene_query_node_scenequerynode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L78",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode_on_detection",
+      "_tgt": "scene_graph_node_scenegraphnode_upsert_node",
+      "source": "scene_graph_node_scenegraphnode_on_detection",
+      "target": "scene_graph_node_scenegraphnode_upsert_node",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L79",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode_on_detection",
+      "_tgt": "scene_graph_node_scenegraphnode_cleanup_nodes",
+      "source": "scene_graph_node_scenegraphnode_on_detection",
+      "target": "scene_graph_node_scenegraphnode_cleanup_nodes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L80",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode_on_detection",
+      "_tgt": "scene_graph_node_scenegraphnode_rebuild_edges",
+      "source": "scene_graph_node_scenegraphnode_on_detection",
+      "target": "scene_graph_node_scenegraphnode_rebuild_edges",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L81",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode_on_detection",
+      "_tgt": "scene_graph_node_scenegraphnode_publish_graph",
+      "source": "scene_graph_node_scenegraphnode_on_detection",
+      "target": "scene_graph_node_scenegraphnode_publish_graph",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L82",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode_on_detection",
+      "_tgt": "scene_graph_node_scenegraphnode_publish_markers",
+      "source": "scene_graph_node_scenegraphnode_on_detection",
+      "target": "scene_graph_node_scenegraphnode_publish_markers",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L104",
+      "weight": 1.0,
+      "_src": "scene_graph_node_scenegraphnode_upsert_node",
+      "_tgt": "scene_graph_node_scenegraphnode_find_best_match",
+      "source": "scene_graph_node_scenegraphnode_find_best_match",
+      "target": "scene_graph_node_scenegraphnode_upsert_node",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L91",
+      "weight": 1.0,
+      "_src": "scene_graph_node_rationale_91",
+      "_tgt": "scene_graph_node_scenegraphnode_find_best_match",
+      "source": "scene_graph_node_scenegraphnode_find_best_match",
+      "target": "scene_graph_node_rationale_91",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_graph_node.py",
+      "source_location": "L147",
+      "weight": 1.0,
+      "_src": "scene_graph_node_rationale_147",
+      "_tgt": "scene_graph_node_scenegraphnode_rebuild_edges",
+      "source": "scene_graph_node_scenegraphnode_rebuild_edges",
+      "target": "scene_graph_node_rationale_147",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L12",
+      "weight": 1.0,
+      "_src": "scene_query_node",
+      "_tgt": "scene_query_node_scenequerynode",
+      "source": "scene_query_node",
+      "target": "scene_query_node_scenequerynode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L125",
+      "weight": 1.0,
+      "_src": "scene_query_node",
+      "_tgt": "scene_query_node_main",
+      "source": "scene_query_node",
+      "target": "scene_query_node_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L13",
+      "weight": 1.0,
+      "_src": "scene_query_node_scenequerynode",
+      "_tgt": "scene_query_node_scenequerynode_init",
+      "source": "scene_query_node_scenequerynode",
+      "target": "scene_query_node_scenequerynode_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L32",
+      "weight": 1.0,
+      "_src": "scene_query_node_scenequerynode",
+      "_tgt": "scene_query_node_scenequerynode_on_graph",
+      "source": "scene_query_node_scenequerynode",
+      "target": "scene_query_node_scenequerynode_on_graph",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L70",
+      "weight": 1.0,
+      "_src": "scene_query_node_scenequerynode",
+      "_tgt": "scene_query_node_scenequerynode_closest",
+      "source": "scene_query_node_scenequerynode",
+      "target": "scene_query_node_scenequerynode_closest",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L88",
+      "weight": 1.0,
+      "_src": "scene_query_node_scenequerynode",
+      "_tgt": "scene_query_node_scenequerynode_find_near",
+      "source": "scene_query_node_scenequerynode",
+      "target": "scene_query_node_scenequerynode_find_near",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L112",
+      "weight": 1.0,
+      "_src": "scene_query_node_scenequerynode",
+      "_tgt": "scene_query_node_scenequerynode_find_by_label",
+      "source": "scene_query_node_scenequerynode",
+      "target": "scene_query_node_scenequerynode_find_by_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L127",
+      "weight": 1.0,
+      "_src": "scene_query_node_main",
+      "_tgt": "scene_query_node_scenequerynode",
+      "source": "scene_query_node_scenequerynode",
+      "target": "scene_query_node_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L47",
+      "weight": 1.0,
+      "_src": "scene_query_node_scenequerynode_on_graph",
+      "_tgt": "scene_query_node_scenequerynode_find_by_label",
+      "source": "scene_query_node_scenequerynode_on_graph",
+      "target": "scene_query_node_scenequerynode_find_by_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L54",
+      "weight": 1.0,
+      "_src": "scene_query_node_scenequerynode_on_graph",
+      "_tgt": "scene_query_node_scenequerynode_find_near",
+      "source": "scene_query_node_scenequerynode_on_graph",
+      "target": "scene_query_node_scenequerynode_find_near",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L61",
+      "weight": 1.0,
+      "_src": "scene_query_node_scenequerynode_on_graph",
+      "_tgt": "scene_query_node_scenequerynode_closest",
+      "source": "scene_query_node_scenequerynode_on_graph",
+      "target": "scene_query_node_scenequerynode_closest",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L71",
+      "weight": 1.0,
+      "_src": "scene_query_node_rationale_71",
+      "_tgt": "scene_query_node_scenequerynode_closest",
+      "source": "scene_query_node_scenequerynode_closest",
+      "target": "scene_query_node_rationale_71",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L89",
+      "weight": 1.0,
+      "_src": "scene_query_node_rationale_89",
+      "_tgt": "scene_query_node_scenequerynode_find_near",
+      "source": "scene_query_node_scenequerynode_find_near",
+      "target": "scene_query_node_rationale_89",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/scene_query_node.py",
+      "source_location": "L113",
+      "weight": 1.0,
+      "_src": "scene_query_node_rationale_113",
+      "_tgt": "scene_query_node_scenequerynode_find_by_label",
+      "source": "scene_query_node_scenequerynode_find_by_label",
+      "target": "scene_query_node_rationale_113",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L71",
+      "weight": 1.0,
+      "_src": "samowl_daemon",
+      "_tgt": "samowl_daemon_import_pipeline",
+      "source": "samowl_daemon",
+      "target": "samowl_daemon_import_pipeline",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L123",
+      "weight": 1.0,
+      "_src": "samowl_daemon",
+      "_tgt": "samowl_daemon_modelbundle",
+      "source": "samowl_daemon",
+      "target": "samowl_daemon_modelbundle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L135",
+      "weight": 1.0,
+      "_src": "samowl_daemon",
+      "_tgt": "samowl_daemon_get_param",
+      "source": "samowl_daemon",
+      "target": "samowl_daemon_get_param",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L155",
+      "weight": 1.0,
+      "_src": "samowl_daemon",
+      "_tgt": "samowl_daemon_run_inference",
+      "source": "samowl_daemon",
+      "target": "samowl_daemon_run_inference",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L301",
+      "weight": 1.0,
+      "_src": "samowl_daemon",
+      "_tgt": "samowl_daemon_handle_client",
+      "source": "samowl_daemon",
+      "target": "samowl_daemon_handle_client",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L345",
+      "weight": 1.0,
+      "_src": "samowl_daemon",
+      "_tgt": "samowl_daemon_serve",
+      "source": "samowl_daemon",
+      "target": "samowl_daemon_serve",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L372",
+      "weight": 1.0,
+      "_src": "samowl_daemon",
+      "_tgt": "samowl_daemon_validate_config",
+      "source": "samowl_daemon",
+      "target": "samowl_daemon_validate_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L386",
+      "weight": 1.0,
+      "_src": "samowl_daemon",
+      "_tgt": "samowl_daemon_load_config",
+      "source": "samowl_daemon",
+      "target": "samowl_daemon_load_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L401",
+      "weight": 1.0,
+      "_src": "samowl_daemon",
+      "_tgt": "samowl_daemon_parse_args",
+      "source": "samowl_daemon",
+      "target": "samowl_daemon_parse_args",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L446",
+      "weight": 1.0,
+      "_src": "samowl_daemon",
+      "_tgt": "samowl_daemon_main",
+      "source": "samowl_daemon",
+      "target": "samowl_daemon_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L72",
+      "weight": 1.0,
+      "_src": "samowl_daemon_rationale_72",
+      "_tgt": "samowl_daemon_import_pipeline",
+      "source": "samowl_daemon_import_pipeline",
+      "target": "samowl_daemon_rationale_72",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L124",
+      "weight": 1.0,
+      "_src": "samowl_daemon_modelbundle",
+      "_tgt": "samowl_daemon_modelbundle_init",
+      "source": "samowl_daemon_modelbundle",
+      "target": "samowl_daemon_modelbundle_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L461",
+      "weight": 1.0,
+      "_src": "samowl_daemon_main",
+      "_tgt": "samowl_daemon_modelbundle",
+      "source": "samowl_daemon_modelbundle",
+      "target": "samowl_daemon_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L171",
+      "weight": 1.0,
+      "_src": "samowl_daemon_run_inference",
+      "_tgt": "samowl_daemon_get_param",
+      "source": "samowl_daemon_get_param",
+      "target": "samowl_daemon_run_inference",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L136",
+      "weight": 1.0,
+      "_src": "samowl_daemon_rationale_136",
+      "_tgt": "samowl_daemon_get_param",
+      "source": "samowl_daemon_get_param",
+      "target": "samowl_daemon_rationale_136",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L321",
+      "weight": 1.0,
+      "_src": "samowl_daemon_handle_client",
+      "_tgt": "samowl_daemon_run_inference",
+      "source": "samowl_daemon_run_inference",
+      "target": "samowl_daemon_handle_client",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L156",
+      "weight": 1.0,
+      "_src": "samowl_daemon_rationale_156",
+      "_tgt": "samowl_daemon_run_inference",
+      "source": "samowl_daemon_run_inference",
+      "target": "samowl_daemon_rationale_156",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L360",
+      "weight": 1.0,
+      "_src": "samowl_daemon_serve",
+      "_tgt": "samowl_daemon_handle_client",
+      "source": "samowl_daemon_handle_client",
+      "target": "samowl_daemon_serve",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L302",
+      "weight": 1.0,
+      "_src": "samowl_daemon_rationale_302",
+      "_tgt": "samowl_daemon_handle_client",
+      "source": "samowl_daemon_handle_client",
+      "target": "samowl_daemon_rationale_302",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L462",
+      "weight": 1.0,
+      "_src": "samowl_daemon_main",
+      "_tgt": "samowl_daemon_serve",
+      "source": "samowl_daemon_serve",
+      "target": "samowl_daemon_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L346",
+      "weight": 1.0,
+      "_src": "samowl_daemon_rationale_346",
+      "_tgt": "samowl_daemon_serve",
+      "source": "samowl_daemon_serve",
+      "target": "samowl_daemon_rationale_346",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L453",
+      "weight": 1.0,
+      "_src": "samowl_daemon_main",
+      "_tgt": "samowl_daemon_validate_config",
+      "source": "samowl_daemon_validate_config",
+      "target": "samowl_daemon_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L373",
+      "weight": 1.0,
+      "_src": "samowl_daemon_rationale_373",
+      "_tgt": "samowl_daemon_validate_config",
+      "source": "samowl_daemon_validate_config",
+      "target": "samowl_daemon_rationale_373",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L452",
+      "weight": 1.0,
+      "_src": "samowl_daemon_main",
+      "_tgt": "samowl_daemon_load_config",
+      "source": "samowl_daemon_load_config",
+      "target": "samowl_daemon_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L387",
+      "weight": 1.0,
+      "_src": "samowl_daemon_rationale_387",
+      "_tgt": "samowl_daemon_load_config",
+      "source": "samowl_daemon_load_config",
+      "target": "samowl_daemon_rationale_387",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_daemon.py",
+      "source_location": "L454",
+      "weight": 1.0,
+      "_src": "samowl_daemon_main",
+      "_tgt": "samowl_daemon_parse_args",
+      "source": "samowl_daemon_parse_args",
+      "target": "samowl_daemon_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L19",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_load_nanoowl_encoder",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_load_nanoowl_encoder",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L30",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_nanoowlpredictor",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_nanoowlpredictor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L100",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_load_mask_decoder_engine",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_load_mask_decoder_engine",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L118",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_load_image_encoder_engine",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_load_image_encoder_engine",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L130",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_preprocess_image",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_preprocess_image",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L154",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_preprocess_points",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_preprocess_points",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L159",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_run_mask_decoder",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_run_mask_decoder",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L178",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_upscale_mask",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_upscale_mask",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L189",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_predictor",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_predictor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L213",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_resolve_existing_path",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_resolve_existing_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L239",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_bbox_to_points",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_bbox_to_points",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L247",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_draw_boundary",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_draw_boundary",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L263",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_save_mask",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_save_mask",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L270",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_save_masked_depth",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_save_masked_depth",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L280",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_quaternion_xyzw_to_matrix",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_quaternion_xyzw_to_matrix",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L296",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_estimate_normal",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_estimate_normal",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L308",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_write_pcd",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_write_pcd",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L331",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_project_mask_to_map_points",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_project_mask_to_map_points",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L364",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_next_hotspot_id",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_next_hotspot_id",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L368",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_weighted_average",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_weighted_average",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L375",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_write_hotspot_json",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_write_hotspot_json",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L446",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_parse_args",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_parse_args",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L476",
+      "weight": 1.0,
+      "_src": "samowl_pipeline",
+      "_tgt": "samowl_pipeline_main",
+      "source": "samowl_pipeline",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L38",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_nanoowlpredictor_init",
+      "_tgt": "samowl_pipeline_load_nanoowl_encoder",
+      "source": "samowl_pipeline_load_nanoowl_encoder",
+      "target": "samowl_pipeline_nanoowlpredictor_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L33",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_nanoowlpredictor",
+      "_tgt": "samowl_pipeline_nanoowlpredictor_init",
+      "source": "samowl_pipeline_nanoowlpredictor",
+      "target": "samowl_pipeline_nanoowlpredictor_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L44",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_nanoowlpredictor",
+      "_tgt": "samowl_pipeline_nanoowlpredictor_encode_text",
+      "source": "samowl_pipeline_nanoowlpredictor",
+      "target": "samowl_pipeline_nanoowlpredictor_encode_text",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L55",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_nanoowlpredictor",
+      "_tgt": "samowl_pipeline_nanoowlpredictor_predict",
+      "source": "samowl_pipeline_nanoowlpredictor",
+      "target": "samowl_pipeline_nanoowlpredictor_predict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L31",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_rationale_31",
+      "_tgt": "samowl_pipeline_nanoowlpredictor",
+      "source": "samowl_pipeline_nanoowlpredictor",
+      "target": "samowl_pipeline_rationale_31",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L57",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_nanoowlpredictor_predict",
+      "_tgt": "samowl_pipeline_nanoowlpredictor_encode_text",
+      "source": "samowl_pipeline_nanoowlpredictor_encode_text",
+      "target": "samowl_pipeline_nanoowlpredictor_predict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L192",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_predictor_init",
+      "_tgt": "samowl_pipeline_load_mask_decoder_engine",
+      "source": "samowl_pipeline_load_mask_decoder_engine",
+      "target": "samowl_pipeline_predictor_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L191",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_predictor_init",
+      "_tgt": "samowl_pipeline_load_image_encoder_engine",
+      "source": "samowl_pipeline_load_image_encoder_engine",
+      "target": "samowl_pipeline_predictor_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L197",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_predictor_set_image",
+      "_tgt": "samowl_pipeline_preprocess_image",
+      "source": "samowl_pipeline_preprocess_image",
+      "target": "samowl_pipeline_predictor_set_image",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L201",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_predictor_predict",
+      "_tgt": "samowl_pipeline_preprocess_points",
+      "source": "samowl_pipeline_preprocess_points",
+      "target": "samowl_pipeline_predictor_predict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L202",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_predictor_predict",
+      "_tgt": "samowl_pipeline_run_mask_decoder",
+      "source": "samowl_pipeline_run_mask_decoder",
+      "target": "samowl_pipeline_predictor_predict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L209",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_predictor_predict",
+      "_tgt": "samowl_pipeline_upscale_mask",
+      "source": "samowl_pipeline_upscale_mask",
+      "target": "samowl_pipeline_predictor_predict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L190",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_predictor",
+      "_tgt": "samowl_pipeline_predictor_init",
+      "source": "samowl_pipeline_predictor",
+      "target": "samowl_pipeline_predictor_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L195",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_predictor",
+      "_tgt": "samowl_pipeline_predictor_set_image",
+      "source": "samowl_pipeline_predictor",
+      "target": "samowl_pipeline_predictor_set_image",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L200",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_predictor",
+      "_tgt": "samowl_pipeline_predictor_predict",
+      "source": "samowl_pipeline_predictor",
+      "target": "samowl_pipeline_predictor_predict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L512",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_predictor",
+      "source": "samowl_pipeline_predictor",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_daemon_bundle",
+      "_tgt": "samowl_pipeline_predictor",
+      "source": "samowl_pipeline_predictor",
+      "target": "samowl_daemon_bundle"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L513",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_predictor_set_image",
+      "source": "samowl_pipeline_predictor_set_image",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L498",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_predictor_predict",
+      "source": "samowl_pipeline_predictor_predict",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L482",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_resolve_existing_path",
+      "source": "samowl_pipeline_resolve_existing_path",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L511",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_bbox_to_points",
+      "source": "samowl_pipeline_bbox_to_points",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L509",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_draw_boundary",
+      "source": "samowl_pipeline_draw_boundary",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L515",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_save_mask",
+      "source": "samowl_pipeline_save_mask",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L517",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_save_masked_depth",
+      "source": "samowl_pipeline_save_masked_depth",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L358",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_project_mask_to_map_points",
+      "_tgt": "samowl_pipeline_quaternion_xyzw_to_matrix",
+      "source": "samowl_pipeline_quaternion_xyzw_to_matrix",
+      "target": "samowl_pipeline_project_mask_to_map_points",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L530",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_estimate_normal",
+      "source": "samowl_pipeline_estimate_normal",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L529",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_write_pcd",
+      "source": "samowl_pipeline_write_pcd",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L522",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_project_mask_to_map_points",
+      "source": "samowl_pipeline_project_mask_to_map_points",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L410",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_write_hotspot_json",
+      "_tgt": "samowl_pipeline_next_hotspot_id",
+      "source": "samowl_pipeline_next_hotspot_id",
+      "target": "samowl_pipeline_write_hotspot_json",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L429",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_write_hotspot_json",
+      "_tgt": "samowl_pipeline_weighted_average",
+      "source": "samowl_pipeline_weighted_average",
+      "target": "samowl_pipeline_write_hotspot_json",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L532",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_write_hotspot_json",
+      "source": "samowl_pipeline_write_hotspot_json",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/samowl_pipeline.py",
+      "source_location": "L477",
+      "weight": 1.0,
+      "_src": "samowl_pipeline_main",
+      "_tgt": "samowl_pipeline_parse_args",
+      "source": "samowl_pipeline_parse_args",
+      "target": "samowl_pipeline_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L111",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_print_usage",
+      "source": "samowl",
+      "target": "samowl_print_usage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L150",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_read_value",
+      "source": "samowl",
+      "target": "samowl_read_value",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L160",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_derive_camera_info_topic",
+      "source": "samowl",
+      "target": "samowl_derive_camera_info_topic",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L171",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_parse_args",
+      "source": "samowl",
+      "target": "samowl_parse_args",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L281",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_find_script",
+      "source": "samowl",
+      "target": "samowl_find_script",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L311",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_find_config",
+      "source": "samowl",
+      "target": "samowl_find_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L331",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_load_config",
+      "source": "samowl",
+      "target": "samowl_load_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L417",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_start_daemon",
+      "source": "samowl",
+      "target": "samowl_start_daemon",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L508",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_build_request_json",
+      "source": "samowl",
+      "target": "samowl_build_request_json",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L530",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_socket_call",
+      "source": "samowl",
+      "target": "samowl_socket_call",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L613",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_parse_response",
+      "source": "samowl",
+      "target": "samowl_parse_response",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L693",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_run_python",
+      "source": "samowl",
+      "target": "samowl_run_python",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L742",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_write_camera_model",
+      "source": "samowl",
+      "target": "samowl_write_camera_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L771",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_rgb_to_bgr",
+      "source": "samowl",
+      "target": "samowl_rgb_to_bgr",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L794",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_depth_to_png_image",
+      "source": "samowl",
+      "target": "samowl_depth_to_png_image",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L830",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_topicrunner",
+      "source": "samowl",
+      "target": "samowl_topicrunner",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L1327",
+      "weight": 1.0,
+      "_src": "samowl",
+      "_tgt": "samowl_main",
+      "source": "samowl",
+      "target": "samowl_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L176",
+      "weight": 1.0,
+      "_src": "samowl_parse_args",
+      "_tgt": "samowl_print_usage",
+      "source": "samowl_print_usage",
+      "target": "samowl_parse_args",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L1336",
+      "weight": 1.0,
+      "_src": "samowl_main",
+      "_tgt": "samowl_print_usage",
+      "source": "samowl_print_usage",
+      "target": "samowl_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L179",
+      "weight": 1.0,
+      "_src": "samowl_parse_args",
+      "_tgt": "samowl_read_value",
+      "source": "samowl_read_value",
+      "target": "samowl_parse_args",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L273",
+      "weight": 1.0,
+      "_src": "samowl_parse_args",
+      "_tgt": "samowl_derive_camera_info_topic",
+      "source": "samowl_derive_camera_info_topic",
+      "target": "samowl_parse_args",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L1335",
+      "weight": 1.0,
+      "_src": "samowl_main",
+      "_tgt": "samowl_parse_args",
+      "source": "samowl_parse_args",
+      "target": "samowl_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L1367",
+      "weight": 1.0,
+      "_src": "samowl_main",
+      "_tgt": "samowl_find_script",
+      "source": "samowl_find_script",
+      "target": "samowl_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L1332",
+      "weight": 1.0,
+      "_src": "samowl_main",
+      "_tgt": "samowl_find_config",
+      "source": "samowl_find_config",
+      "target": "samowl_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L1333",
+      "weight": 1.0,
+      "_src": "samowl_main",
+      "_tgt": "samowl_load_config",
+      "source": "samowl_load_config",
+      "target": "samowl_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L1374",
+      "weight": 1.0,
+      "_src": "samowl_main",
+      "_tgt": "samowl_start_daemon",
+      "source": "samowl_start_daemon",
+      "target": "samowl_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L698",
+      "weight": 1.0,
+      "_src": "samowl_run_python",
+      "_tgt": "samowl_build_request_json",
+      "source": "samowl_build_request_json",
+      "target": "samowl_run_python",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L701",
+      "weight": 1.0,
+      "_src": "samowl_run_python",
+      "_tgt": "samowl_socket_call",
+      "source": "samowl_socket_call",
+      "target": "samowl_run_python",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L711",
+      "weight": 1.0,
+      "_src": "samowl_run_python",
+      "_tgt": "samowl_parse_response",
+      "source": "samowl_parse_response",
+      "target": "samowl_run_python",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L1385",
+      "weight": 1.0,
+      "_src": "samowl_main",
+      "_tgt": "samowl_run_python",
+      "source": "samowl_run_python",
+      "target": "samowl_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "src/samowl.cpp",
+      "source_location": "L837",
+      "weight": 1.0,
+      "_src": "samowl_topicrunner",
+      "_tgt": "samowl_topicrunner_topicrunner",
+      "source": "samowl_topicrunner",
+      "target": "samowl_topicrunner_topicrunner",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "scene_graph_node_class",
+      "_tgt": "scene_graph_node_sub",
+      "source": "scene_graph_node_class",
+      "target": "scene_graph_node_sub"
+    },
+    {
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "scene_graph_node_class",
+      "_tgt": "scene_graph_node_pub",
+      "source": "scene_graph_node_class",
+      "target": "scene_graph_node_pub"
+    },
+    {
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "scene_graph_node_class",
+      "_tgt": "scene_graph_marker_pub",
+      "source": "scene_graph_node_class",
+      "target": "scene_graph_marker_pub"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "scene_graph_node_class",
+      "_tgt": "scene_graph_upsert",
+      "source": "scene_graph_node_class",
+      "target": "scene_graph_upsert"
+    },
+    {
+      "relation": "installs",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_cmake_install",
+      "_tgt": "scene_graph_node_class",
+      "source": "scene_graph_node_class",
+      "target": "samowl_cmake_install"
+    },
+    {
+      "relation": "consumes_output_of",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "weight": 1.0,
+      "_src": "scene_graph_node_class",
+      "_tgt": "samowl_daemon_inference",
+      "source": "scene_graph_node_class",
+      "target": "samowl_daemon_inference"
+    },
+    {
+      "relation": "feeds",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "weight": 1.0,
+      "_src": "scene_graph_node_pub",
+      "_tgt": "scene_query_graph_sub",
+      "source": "scene_graph_node_pub",
+      "target": "scene_query_graph_sub"
+    },
+    {
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "scene_graph_upsert",
+      "_tgt": "scene_graph_hysteresis",
+      "source": "scene_graph_upsert",
+      "target": "scene_graph_hysteresis"
+    },
+    {
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "scene_query_node_class",
+      "_tgt": "scene_query_graph_sub",
+      "source": "scene_query_node_class",
+      "target": "scene_query_graph_sub"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "scene_query_node_class",
+      "_tgt": "scene_query_find_near",
+      "source": "scene_query_node_class",
+      "target": "scene_query_find_near"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "scene_query_node_class",
+      "_tgt": "scene_query_closest",
+      "source": "scene_query_node_class",
+      "target": "scene_query_closest"
+    },
+    {
+      "relation": "installs",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_cmake_install",
+      "_tgt": "scene_query_node_class",
+      "source": "scene_query_node_class",
+      "target": "samowl_cmake_install"
+    },
+    {
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_daemon_bundle",
+      "_tgt": "samowl_pipeline_nanoowl",
+      "source": "samowl_daemon_bundle",
+      "target": "samowl_pipeline_nanoowl"
+    },
+    {
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_daemon_inference",
+      "_tgt": "samowl_daemon_bundle",
+      "source": "samowl_daemon_bundle",
+      "target": "samowl_daemon_inference"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_daemon_socket",
+      "_tgt": "samowl_daemon_inference",
+      "source": "samowl_daemon_inference",
+      "target": "samowl_daemon_socket"
+    },
+    {
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_daemon_socket",
+      "_tgt": "samowl_daemon_config",
+      "source": "samowl_daemon_socket",
+      "target": "samowl_daemon_config"
+    },
+    {
+      "relation": "installs",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "weight": 1.0,
+      "_src": "samowl_cmake_install",
+      "_tgt": "samowl_daemon_socket",
+      "source": "samowl_daemon_socket",
+      "target": "samowl_cmake_install"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "weight": 1.0,
+      "_src": "samowl_daemon_socket",
+      "_tgt": "samowl_cpp_main",
+      "source": "samowl_daemon_socket",
+      "target": "samowl_cpp_main"
+    },
+    {
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_cpp_main",
+      "_tgt": "samowl_cpp_options",
+      "source": "samowl_cpp_main",
+      "target": "samowl_cpp_options"
+    },
+    {
+      "relation": "compiles",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_cmake_build",
+      "_tgt": "samowl_cpp_main",
+      "source": "samowl_cpp_main",
+      "target": "samowl_cmake_build"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_architecture",
+      "_tgt": "samowl_cpp_main",
+      "source": "samowl_cpp_main",
+      "target": "samowl_architecture"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_architecture",
+      "_tgt": "samowl_ipc_filesystem",
+      "source": "samowl_architecture",
+      "target": "samowl_ipc_filesystem"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0,
+      "_src": "samowl_bottleneck_fork",
+      "_tgt": "samowl_persistent_daemon",
+      "source": "samowl_bottleneck_fork",
+      "target": "samowl_persistent_daemon"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "daemon_triple",
+      "label": "Persistent Daemon Architecture",
+      "nodes": [
+        "samowl_daemon_bundle",
+        "samowl_daemon_socket",
+        "samowl_daemon_inference"
+      ],
+      "relation": "implement",
+      "confidence": "EXTRACTED",
+      "confidence_score": 0.95
+    },
+    {
+      "id": "scene_graph_pipeline",
+      "label": "Scene Graph Detection + Visualization Pipeline",
+      "nodes": [
+        "scene_graph_node_class",
+        "scene_graph_node_sub",
+        "scene_graph_marker_pub",
+        "samowl_daemon_inference"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85
+    },
+    {
+      "id": "query_subsystem",
+      "label": "Scene Query Subsystem",
+      "nodes": [
+        "scene_query_node_class",
+        "scene_query_graph_sub",
+        "scene_query_find_near",
+        "scene_query_closest"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 0.9
+    }
+  ]
+}

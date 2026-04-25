@@ -850,6 +850,16 @@ struct DetectionRecord
   double stamp;
 };
 
+struct QueuedFrame
+{
+  std::string stamp;
+  sensor_msgs::msg::Image::ConstSharedPtr rgb_msg;
+  sensor_msgs::msg::Image::ConstSharedPtr depth_msg;
+  sensor_msgs::msg::CameraInfo::ConstSharedPtr info_msg;
+  geometry_msgs::msg::TransformStamped transform;
+  double frame_timestamp;
+};
+
 class TopicRunner : public rclcpp::Node
 {
 public:
@@ -887,6 +897,9 @@ public:
       "Bag replay: run with '--ros-args -p use_sim_time:=true' and 'ros2 bag play --clock' "
       "so TF timestamps match image stamps");
 
+    // Start worker thread for processing frames
+    worker_thread_ = std::thread(&TopicRunner::worker_loop, this);
+
     if (options_.mode == "scan") {
       startup_watchdog_ = create_wall_timer(
         std::chrono::seconds(30),
@@ -923,8 +936,29 @@ public:
     if (periodic_flush_timer_) {
       periodic_flush_timer_->cancel();
     }
-    RCLCPP_INFO(get_logger(), "[scan] Finalizing after shutdown — %d frames, %zu detections",
-      frame_count_, scan_detections_.size());
+
+    // Signal worker to drain queue and exit
+    {
+      std::unique_lock<std::mutex> lock(queue_mutex_);
+      worker_shutdown_requested_ = true;
+    }
+    queue_cv_.notify_one();
+
+    // Wait for worker thread to finish processing all queued frames
+    if (worker_thread_.joinable()) {
+      worker_thread_.join();
+    }
+
+    size_t detections_count = 0;
+    {
+      std::lock_guard<std::mutex> lock(detections_mutex_);
+      detections_count = scan_detections_.size();
+    }
+
+    RCLCPP_INFO(get_logger(),
+      "[scan] Finalized: %ld received, %ld processed, %ld dropped, %zu detections",
+      frames_received_.load(), frames_processed_.load(), frames_dropped_.load(),
+      detections_count);
     save_scan_outputs(true);
   }
 
@@ -934,11 +968,6 @@ private:
     const Image::ConstSharedPtr & depth_msg,
     const CameraInfo::ConstSharedPtr & info_msg)
   {
-    // In scan mode every frame must be processed; the single-threaded executor
-    // serializes callbacks naturally so no frame-drop guard is needed.
-    if (options_.mode == "live" && processing_.exchange(true)) {
-      return;
-    }
     if (options_.mode == "scan") {
       ++total_frame_count_;
     }
@@ -946,10 +975,8 @@ private:
     try {
       const auto stamp = std::to_string(rgb_msg->header.stamp.sec) + "_" +
         std::to_string(rgb_msg->header.stamp.nanosec);
-      const fs::path rgb_path = fs::path(options_.work_dir) / ("rgb_" + stamp + ".png");
-      const fs::path depth_path = fs::path(options_.work_dir) / ("depth_" + stamp + ".png");
-      const fs::path camera_model_path = fs::path(options_.work_dir) / ("camera_model_" + stamp + ".json");
 
+      // TF lookup must stay in callback to prevent transform buffer staleness
       geometry_msgs::msg::TransformStamped transform;
       try {
         transform = tf_buffer_.lookupTransform(
@@ -958,9 +985,6 @@ private:
           rgb_msg->header.stamp,
           tf2::durationFromSec(0.25));
       } catch (const tf2::ExtrapolationException &) {
-        // Bag playback timing skew: fall back to latest available transform.
-        // NOTE: accurate bag replay requires --ros-args -p use_sim_time:=true
-        // and ros2 bag play --clock so the TF buffer uses bag timestamps.
         transform = tf_buffer_.lookupTransform(
           options_.map_frame,
           rgb_msg->header.frame_id,
@@ -969,115 +993,174 @@ private:
         RCLCPP_WARN(get_logger(),
           "TF lookup failed (%s → %s): %s — skipping frame",
           rgb_msg->header.frame_id.c_str(), options_.map_frame.c_str(), ex.what());
-        processing_ = false;
         if (options_.mode == "scan") {
           reset_idle_timer();
         }
         return;
       }
 
-      cv::imwrite(rgb_path.string(), rgb_to_bgr(rgb_msg));
-      cv::imwrite(depth_path.string(), depth_to_png_image(depth_msg));
-      write_camera_model(camera_model_path, info_msg, transform, options_);
+      // Capture frame timestamp for later use
+      const double frame_timestamp = static_cast<double>(rgb_msg->header.stamp.sec) +
+        rgb_msg->header.stamp.nanosec * 1e-9;
 
-      Options run_options = options_;
-      run_options.image = rgb_path.string();
-      run_options.depth_image = depth_path.string();
-      run_options.camera_model = camera_model_path.string();
-
-      RCLCPP_INFO(get_logger(), "Running OWL + SAM on synchronized RGB/depth frames");
-      ParsedResult result;
-      last_status_ = run_python(run_options, script_, &result);
-      if (last_status_ != EXIT_SUCCESS) {
-        RCLCPP_ERROR(get_logger(), "OWL + SAM pipeline failed with status %d", last_status_);
-      } else {
-        ++frame_count_;
-        if (startup_watchdog_) {
-          startup_watchdog_->cancel();
-          startup_watchdog_.reset();
+      // Enqueue frame for processing in worker thread
+      {
+        std::unique_lock<std::mutex> lock(queue_mutex_);
+        if (frame_queue_.size() >= kDefaultQueueSize) {
+          frame_queue_.pop_front();
+          ++frames_dropped_;
+          RCLCPP_DEBUG(get_logger(), "[live] queue full, dropped oldest frame");
         }
-
-        const double ts = static_cast<double>(rgb_msg->header.stamp.sec) +
-          rgb_msg->header.stamp.nanosec * 1e-9;
-
-        if (!result.detections.empty()) {
-          // Multi-label path: centroids come directly from daemon JSON response.
-          for (const auto & det : result.detections) {
-            if (options_.mode == "scan") {
-              constexpr float kEps = 1e-3f;
-              const bool at_origin =
-                std::abs(det.cx) < kEps && std::abs(det.cy) < kEps && std::abs(det.cz) < kEps;
-              if (!at_origin) {
-                scan_detections_.push_back({det.label, det.score, det.cx, det.cy, det.cz, ts});
-              }
-              RCLCPP_DEBUG(get_logger(), "[scan] frame=%d label=%s score=%.3f pos=(%.2f,%.2f,%.2f)",
-                frame_count_, det.label.c_str(), det.score, det.cx, det.cy, det.cz);
-            }
-            // Publish markers in both modes.
-            publish_objects(det.cx, det.cy, det.cz, det.label, det.score, rgb_msg->header.stamp);
-            publish_detections(det.cx, det.cy, det.cz, det.label, det.score, rgb_msg->header.stamp);
-            // In live mode also stream the PointCloud2; in scan mode the daemon
-            // writes PCD files already handled by hotspot fusion.
-            if (options_.mode != "scan" && !det.output_points.empty()) {
-              pcl::PointCloud<pcl::PointXYZ> cloud;
-              if (load_stable_pcd(det.output_points, cloud)) {
-                publish_points(cloud, rgb_msg->header.stamp);
-              }
-            }
-            // Clean up per-detection PCD (both modes — daemon wrote it for us).
-            if (!det.output_points.empty()) {
-              std::error_code ec;
-              fs::remove(det.output_points, ec);
-            }
-          }
-        } else if (!result.output_points.empty()) {
-          // Legacy single-detection path (daemon older than multi-label support).
-          pcl::PointCloud<pcl::PointXYZ> cloud;
-          if (load_stable_pcd(result.output_points, cloud)) {
-            float cx, cy, cz;
-            compute_centroid(cloud, cx, cy, cz);
-            if (options_.mode == "scan") {
-              constexpr float kEps = 1e-3f;
-              if (!(std::abs(cx) < kEps && std::abs(cy) < kEps && std::abs(cz) < kEps)) {
-                scan_detections_.push_back({options_.text, result.score, cx, cy, cz, ts});
-              } else {
-                RCLCPP_WARN(get_logger(), "[scan] legacy: skipping origin centroid for '%s'", options_.text.c_str());
-              }
-            }
-            publish_objects(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
-            publish_detections(cx, cy, cz, options_.text, result.score, rgb_msg->header.stamp);
-            if (options_.mode != "scan") {
-              publish_points(cloud, rgb_msg->header.stamp);
-            }
-          }
-          std::error_code ec;
-          fs::remove(result.output_points, ec);
-        }
-
-        RCLCPP_INFO(get_logger(), "[%s] frame=%d detections=%zu",
-          options_.mode.c_str(), frame_count_, result.detections.size());
+        frame_queue_.push_back({stamp, rgb_msg, depth_msg, info_msg, transform, frame_timestamp});
+        ++frames_received_;
       }
+      queue_cv_.notify_one();
 
-      // Always clean up scratch files — even when inference fails.
-      for (const auto & p : {rgb_path, depth_path, camera_model_path}) {
-        std::error_code ec;
-        fs::remove(p, ec);
-        if (ec && ec != std::errc::no_such_file_or_directory) {
-          RCLCPP_WARN(get_logger(), "Could not remove temp file %s: %s",
-            p.string().c_str(), ec.message().c_str());
-        }
+      if (options_.mode == "scan") {
+        reset_idle_timer();
       }
     } catch (const std::exception & error) {
       last_status_ = EXIT_FAILURE;
       RCLCPP_ERROR(get_logger(), "%s", error.what());
     }
+  }
 
-    processing_ = false;
-    if (options_.mode == "scan") {
-      reset_idle_timer();
-    } else if (!options_.continuous) {
-      rclcpp::shutdown();
+  void worker_loop()
+  {
+    RCLCPP_INFO(get_logger(), "[worker] started");
+    while (true) {
+      QueuedFrame frame;
+      bool have_frame = false;
+
+      {
+        std::unique_lock<std::mutex> lock(queue_mutex_);
+        queue_cv_.wait(lock, [this] {
+          return !frame_queue_.empty() || worker_shutdown_requested_;
+        });
+
+        if (frame_queue_.empty() && worker_shutdown_requested_) {
+          break;
+        }
+        if (!frame_queue_.empty()) {
+          frame = frame_queue_.front();
+          frame_queue_.pop_front();
+          have_frame = true;
+        }
+      }
+
+      if (!have_frame) {
+        continue;
+      }
+
+      // Process frame outside the lock
+      try {
+        const fs::path rgb_path = fs::path(options_.work_dir) / ("rgb_" + frame.stamp + ".png");
+        const fs::path depth_path = fs::path(options_.work_dir) / ("depth_" + frame.stamp + ".png");
+        const fs::path camera_model_path = fs::path(options_.work_dir) / ("camera_model_" + frame.stamp + ".json");
+
+        cv::imwrite(rgb_path.string(), rgb_to_bgr(frame.rgb_msg));
+        cv::imwrite(depth_path.string(), depth_to_png_image(frame.depth_msg));
+        write_camera_model(camera_model_path, frame.info_msg, frame.transform, options_);
+
+        Options run_options = options_;
+        run_options.image = rgb_path.string();
+        run_options.depth_image = depth_path.string();
+        run_options.camera_model = camera_model_path.string();
+
+        RCLCPP_INFO(get_logger(), "[worker] Running OWL + SAM on frame");
+        ParsedResult result;
+        last_status_ = run_python(run_options, script_, &result);
+        if (last_status_ != EXIT_SUCCESS) {
+          RCLCPP_ERROR(get_logger(), "[worker] OWL + SAM pipeline failed with status %d", last_status_);
+        } else {
+          ++frame_count_;
+          if (startup_watchdog_) {
+            startup_watchdog_->cancel();
+            startup_watchdog_.reset();
+          }
+
+          const double ts = frame.frame_timestamp;
+
+          if (!result.detections.empty()) {
+            for (const auto & det : result.detections) {
+              if (options_.mode == "scan") {
+                constexpr float kEps = 1e-3f;
+                const bool at_origin =
+                  std::abs(det.cx) < kEps && std::abs(det.cy) < kEps && std::abs(det.cz) < kEps;
+                if (!at_origin) {
+                  {
+                    std::lock_guard<std::mutex> lock(detections_mutex_);
+                    scan_detections_.push_back({det.label, det.score, det.cx, det.cy, det.cz, ts});
+                  }
+                  RCLCPP_DEBUG(get_logger(), "[scan] frame=%d label=%s score=%.3f pos=(%.2f,%.2f,%.2f)",
+                    frame_count_, det.label.c_str(), det.score, det.cx, det.cy, det.cz);
+                }
+              }
+              // Publish markers in both modes.
+              publish_objects(det.cx, det.cy, det.cz, det.label, det.score, frame.rgb_msg->header.stamp);
+              publish_detections(det.cx, det.cy, det.cz, det.label, det.score, frame.rgb_msg->header.stamp);
+              // In live mode also stream the PointCloud2; in scan mode the daemon
+              // writes PCD files already handled by hotspot fusion.
+              if (options_.mode != "scan" && !det.output_points.empty()) {
+                pcl::PointCloud<pcl::PointXYZ> cloud;
+                if (load_stable_pcd(det.output_points, cloud)) {
+                  publish_points(cloud, frame.rgb_msg->header.stamp);
+                }
+              }
+              // Clean up per-detection PCD (both modes — daemon wrote it for us).
+              if (!det.output_points.empty()) {
+                std::error_code ec;
+                fs::remove(det.output_points, ec);
+              }
+            }
+          } else if (!result.output_points.empty()) {
+            // Legacy single-detection path (daemon older than multi-label support).
+            pcl::PointCloud<pcl::PointXYZ> cloud;
+            if (load_stable_pcd(result.output_points, cloud)) {
+              float cx, cy, cz;
+              compute_centroid(cloud, cx, cy, cz);
+              if (options_.mode == "scan") {
+                constexpr float kEps = 1e-3f;
+                if (!(std::abs(cx) < kEps && std::abs(cy) < kEps && std::abs(cz) < kEps)) {
+                  {
+                    std::lock_guard<std::mutex> lock(detections_mutex_);
+                    scan_detections_.push_back({options_.text, result.score, cx, cy, cz, ts});
+                  }
+                } else {
+                  RCLCPP_WARN(get_logger(), "[scan] legacy: skipping origin centroid for '%s'", options_.text.c_str());
+                }
+              }
+              publish_objects(cx, cy, cz, options_.text, result.score, frame.rgb_msg->header.stamp);
+              publish_detections(cx, cy, cz, options_.text, result.score, frame.rgb_msg->header.stamp);
+              if (options_.mode != "scan") {
+                publish_points(cloud, frame.rgb_msg->header.stamp);
+              }
+            }
+            std::error_code ec;
+            fs::remove(result.output_points, ec);
+          }
+
+          RCLCPP_INFO(get_logger(), "[%s] frame=%d detections=%zu",
+            options_.mode.c_str(), frame_count_, result.detections.size());
+        }
+
+        // Always clean up scratch files — even when inference fails.
+        for (const auto & p : {rgb_path, depth_path, camera_model_path}) {
+          std::error_code ec;
+          fs::remove(p, ec);
+          if (ec && ec != std::errc::no_such_file_or_directory) {
+            RCLCPP_WARN(get_logger(), "Could not remove temp file %s: %s",
+              p.string().c_str(), ec.message().c_str());
+          }
+        }
+
+        ++frames_processed_;
+      } catch (const std::exception & error) {
+        last_status_ = EXIT_FAILURE;
+        RCLCPP_ERROR(get_logger(), "[worker] %s", error.what());
+      }
     }
+    RCLCPP_INFO(get_logger(), "[worker] exiting");
   }
 
   void reset_idle_timer()
@@ -1144,7 +1227,14 @@ private:
     std::vector<Node> node_list;
     std::map<std::string, int> label_counter;
 
-    for (const auto & det : scan_detections_) {
+    // Make a copy of scan_detections_ to avoid holding the lock during processing
+    std::vector<DetectionRecord> detections_snapshot;
+    {
+      std::lock_guard<std::mutex> lock(detections_mutex_);
+      detections_snapshot = scan_detections_;
+    }
+
+    for (const auto & det : detections_snapshot) {
       bool merged = false;
       for (auto & node : node_list) {
         if (node.label == det.label &&
@@ -1372,6 +1462,22 @@ private:
   rclcpp::TimerBase::SharedPtr idle_timer_;
   rclcpp::TimerBase::SharedPtr startup_watchdog_;
   rclcpp::TimerBase::SharedPtr periodic_flush_timer_;
+
+  // Frame queue and worker thread
+  std::mutex queue_mutex_;
+  std::condition_variable queue_cv_;
+  std::deque<QueuedFrame> frame_queue_;
+  std::thread worker_thread_;
+  std::atomic_bool worker_shutdown_requested_{false};
+  static constexpr size_t kDefaultQueueSize = 5;
+
+  // Metrics
+  std::atomic<uint64_t> frames_received_{0};
+  std::atomic<uint64_t> frames_processed_{0};
+  std::atomic<uint64_t> frames_dropped_{0};
+
+  // Synchronization for scan_detections_
+  std::mutex detections_mutex_;
 };
 }  // namespace
 
