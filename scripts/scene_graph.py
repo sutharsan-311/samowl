@@ -155,3 +155,55 @@ class SceneGraph:
                         nearby[node['id']] = node
 
         return list(nearby.values())
+
+    def is_between(self, query_label: str, label_a: str, label_b: str,
+                   corridor_width: float = 0.5) -> List[Dict]:
+        """Find query nodes in 2D corridor between label_a and label_b nodes.
+
+        2D projection (Z ignored). Returns deduplicated list of query nodes.
+        For each (anchor_a, anchor_b) pair, find query nodes within corridor_width.
+        """
+        nodes_a = [n for n in self._nodes if n['label'] == label_a]
+        nodes_b = [n for n in self._nodes if n['label'] == label_b]
+        query_nodes = [n for n in self._nodes if n['label'] == query_label]
+
+        if not nodes_a or not nodes_b or not query_nodes:
+            return []
+
+        results = {}  # id -> node dict
+
+        for anchor_a in nodes_a:
+            for anchor_b in nodes_b:
+                # 2D positions (x, y only)
+                pa = anchor_a['position'][:2]
+                pb = anchor_b['position'][:2]
+                ab_len_sq = (pb[0] - pa[0]) ** 2 + (pb[1] - pa[1]) ** 2
+
+                if ab_len_sq < 1e-6:  # degenerate case: a and b coincide
+                    continue
+
+                for query in query_nodes:
+                    pq = query['position'][:2]
+
+                    # Vector from A to Q
+                    aq = [pq[0] - pa[0], pq[1] - pa[1]]
+                    # Vector from A to B
+                    ab = [pb[0] - pa[0], pb[1] - pa[1]]
+
+                    # Scalar projection: t = dot(AQ, AB) / |AB|^2
+                    t = (aq[0] * ab[0] + aq[1] * ab[1]) / ab_len_sq
+
+                    # Check if t is in [0, 1] (between A and B)
+                    if not (0.0 <= t <= 1.0):
+                        continue
+
+                    # Closest point on segment AB
+                    closest = [pa[0] + t * ab[0], pa[1] + t * ab[1]]
+
+                    # Perpendicular distance from Q to line AB
+                    perp_dist = math.sqrt((pq[0] - closest[0]) ** 2 + (pq[1] - closest[1]) ** 2)
+
+                    if perp_dist <= corridor_width:
+                        results[query['id']] = query
+
+        return list(results.values())
