@@ -85,6 +85,7 @@ struct Options
   int daemon_startup_timeout_ms{30000};
   int daemon_poll_interval_ms{100};
   int scan_idle_timeout_ms{5000};  // scan mode: ms of silence → finalize
+  int frame_sample_rate{1};        // scan mode: process every Nth frame (1=all, 2=every 2nd, etc)
   bool continuous{false};
   bool debug{false};
 };
@@ -135,6 +136,7 @@ void print_usage(const char * program)
     << "  --mode <live|scan>          Operating mode: 'live' streams topics; 'scan' processes every frame and saves JSON (default: live)\n"
     << "  --output-dir <path>         Scan mode: directory for scene_graph.json and hotspots.json (default: /output)\n"
     << "  --scan-idle-timeout <sec>   Scan mode: seconds of inactivity before finalization (default: 5)\n"
+    << "  --frame-sample <N>          Scan mode: process every Nth frame (default: 1=all frames)\n"
     << "  --continuous                Keep processing synchronized topic frames\n"
     << "  --owl-model <path>          Package-local OWL-ViT model directory\n"
     << "  --image-encoder <path>      SAM image encoder TensorRT engine\n"
@@ -239,6 +241,19 @@ bool parse_args(int argc, char ** argv, Options & options)
         options.scan_idle_timeout_ms = std::stoi(val) * 1000;
       } catch (...) {
         std::cerr << "--scan-idle-timeout must be an integer number of seconds\n";
+        return false;
+      }
+    } else if (arg == "--frame-sample") {
+      std::string val;
+      if (!read_value(i, argc, argv, val)) return false;
+      try {
+        options.frame_sample_rate = std::stoi(val);
+        if (options.frame_sample_rate < 1) {
+          std::cerr << "--frame-sample must be >= 1\n";
+          return false;
+        }
+      } catch (...) {
+        std::cerr << "--frame-sample must be a positive integer\n";
         return false;
       }
     } else if (arg == "--depth-scale") {
@@ -970,6 +985,10 @@ private:
   {
     if (options_.mode == "scan") {
       ++total_frame_count_;
+      // Frame sampling: only queue every Nth frame
+      if (++frame_arrival_counter_ % options_.frame_sample_rate != 0) {
+        return;
+      }
     }
 
     try {
@@ -1458,6 +1477,7 @@ private:
   int last_status_{EXIT_SUCCESS};
   int frame_count_{0};
   int total_frame_count_{0};
+  int frame_arrival_counter_{0};  // for frame sampling in scan mode
   std::vector<DetectionRecord> scan_detections_;
   rclcpp::TimerBase::SharedPtr idle_timer_;
   rclcpp::TimerBase::SharedPtr startup_watchdog_;

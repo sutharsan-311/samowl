@@ -1,6 +1,6 @@
 {
   "room_id": "simulation_room",
-  "scan_timestamp": "2026-04-25T15:56:43.872373+00:00",
+  "scan_timestamp": "2026-04-25T16:31:17.076485+00:00",
   "merge_radius_m": 0.1,
   "hotspots": [
     {
@@ -52,7 +52,7 @@
             301.9921875
           ],
           "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:56:43.872387+00:00"
+          "timestamp": "2026-04-25T16:31:17.076504+00:00"
         }
       ]
     },
@@ -60,564 +60,55 @@
       "id": "hs_002",
       "label": "object",
       "position_3d": [
-        -0.8901625998747491,
-        -1.3438344113054144,
-        0.32371119078126487
+        -0.9005506410292231,
+        -1.3344543022012971,
+        0.2631677729121925
       ],
       "normal_vector": [
-        0.042901042169095835,
-        -0.9868258089638299,
-        -0.1559946260090015
+        -0.25379110912284353,
+        -0.9656721351768028,
+        -0.055384115712645086
       ],
-      "confidence": 0.0509033203125,
+      "confidence": 0.06280517578125,
       "detection_count": 1,
-      "point_count": 2837,
+      "point_count": 2470,
       "source_frame": "front_depth_camera_visual_link",
       "map_frame": "odom",
       "bbox": [
-        127.8125,
+        116.09375,
         0.0,
-        613.4375,
-        195.99609375
+        593.28125,
+        195.29296875
       ],
       "mask_iou": [
         [
-          0.8267768621444702,
-          0.8938909769058228,
-          0.881340742111206,
-          0.9577313661575317
+          0.8658979535102844,
+          0.9253178238868713,
+          0.8996756076812744,
+          0.9249491691589355
         ]
       ],
       "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
       "observations": [
         {
           "position_3d": [
-            -0.8901625998747491,
-            -1.3438344113054144,
-            0.32371119078126487
+            -0.9005506410292231,
+            -1.3344543022012971,
+            0.2631677729121925
           ],
-          "confidence": 0.0509033203125,
-          "point_count": 2837,
+          "confidence": 0.06280517578125,
+          "point_count": 2470,
           "bbox": [
-            127.8125,
+            116.09375,
             0.0,
-            613.4375,
-            195.99609375
+            593.28125,
+            195.29296875
           ],
           "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:58:18.442764+00:00"
-        }
-      ]
-    },
-    {
-      "id": "hs_003",
-      "label": "object",
-      "position_3d": [
-        -1.5717631374215515,
-        -0.20933998712119026,
-        0.589965682801735
-      ],
-      "normal_vector": [
-        -0.992132725249534,
-        0.12486113264099744,
-        0.009074857824780173
-      ],
-      "confidence": 0.05059814453125,
-      "detection_count": 1,
-      "point_count": 14229,
-      "source_frame": "front_depth_camera_visual_link",
-      "map_frame": "odom",
-      "bbox": [
-        123.75,
-        0.0,
-        621.25,
-        198.1640625
-      ],
-      "mask_iou": [
-        [
-          0.7362042665481567,
-          0.864607572555542,
-          0.8674867153167725,
-          0.942009449005127
-        ]
-      ],
-      "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-      "observations": [
-        {
-          "position_3d": [
-            -1.5717631374215515,
-            -0.20933998712119026,
-            0.589965682801735
-          ],
-          "confidence": 0.05059814453125,
-          "point_count": 14229,
-          "bbox": [
-            123.75,
-            0.0,
-            621.25,
-            198.1640625
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:58:19.081231+00:00"
-        }
-      ]
-    },
-    {
-      "id": "hs_004",
-      "label": "object",
-      "position_3d": [
-        -1.4709829206336815,
-        -0.5519431184731151,
-        0.7476638925293787
-      ],
-      "normal_vector": [
-        0.8328516181183382,
-        0.4574274695806688,
-        0.31163807898055723
-      ],
-      "confidence": 0.052337646484375,
-      "detection_count": 1,
-      "point_count": 36536,
-      "source_frame": "front_depth_camera_visual_link",
-      "map_frame": "odom",
-      "bbox": [
-        137.5,
-        0.0,
-        639.0,
-        199.6875
-      ],
-      "mask_iou": [
-        [
-          0.7275817394256592,
-          0.8916754126548767,
-          0.8890827894210815,
-          0.9582464694976807
-        ]
-      ],
-      "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-      "observations": [
-        {
-          "position_3d": [
-            -1.4709829206336815,
-            -0.5519431184731151,
-            0.7476638925293787
-          ],
-          "confidence": 0.052337646484375,
-          "point_count": 36536,
-          "bbox": [
-            137.5,
-            0.0,
-            639.0,
-            199.6875
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:58:20.411498+00:00"
-        }
-      ]
-    },
-    {
-      "id": "hs_005",
-      "label": "object",
-      "position_3d": [
-        -1.152685630564255,
-        -1.0933326167625161,
-        0.7263398200084017
-      ],
-      "normal_vector": [
-        -0.5141658474466512,
-        -0.7977712319169303,
-        -0.3149516515994327
-      ],
-      "confidence": 0.05291748046875,
-      "detection_count": 1,
-      "point_count": 25497,
-      "source_frame": "front_depth_camera_visual_link",
-      "map_frame": "odom",
-      "bbox": [
-        182.03125,
-        0.0,
-        639.0,
-        225.0
-      ],
-      "mask_iou": [
-        [
-          0.9001484513282776,
-          0.7447508573532104,
-          0.9291363954544067,
-          0.9628310203552246
-        ]
-      ],
-      "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-      "observations": [
-        {
-          "position_3d": [
-            -1.152685630564255,
-            -1.0933326167625161,
-            0.7263398200084017
-          ],
-          "confidence": 0.05291748046875,
-          "point_count": 25497,
-          "bbox": [
-            182.03125,
-            0.0,
-            639.0,
-            225.0
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:58:27.085775+00:00"
-        }
-      ]
-    },
-    {
-      "id": "hs_006",
-      "label": "object",
-      "position_3d": [
-        -0.9139648322409515,
-        -1.3285645002755286,
-        0.7541878333520502
-      ],
-      "normal_vector": [
-        -0.11841110111577452,
-        -0.9928898666136815,
-        0.012187038541644065
-      ],
-      "confidence": 0.0535888671875,
-      "detection_count": 1,
-      "point_count": 14112,
-      "source_frame": "front_depth_camera_visual_link",
-      "map_frame": "odom",
-      "bbox": [
-        61.5625,
-        0.0,
-        423.4375,
-        218.96484375
-      ],
-      "mask_iou": [
-        [
-          0.6823192834854126,
-          0.8801551461219788,
-          0.7904552221298218,
-          0.9379968643188477
-        ]
-      ],
-      "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-      "observations": [
-        {
-          "position_3d": [
-            -0.9139648322409515,
-            -1.3285645002755286,
-            0.7541878333520502
-          ],
-          "confidence": 0.0535888671875,
-          "point_count": 14112,
-          "bbox": [
-            61.5625,
-            0.0,
-            423.4375,
-            218.96484375
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:59:20.838416+00:00"
-        }
-      ]
-    },
-    {
-      "id": "hs_007",
-      "label": "object",
-      "position_3d": [
-        -0.8862557260568671,
-        -1.3369175249056597,
-        0.520202611770015
-      ],
-      "normal_vector": [
-        -0.25543898140647425,
-        -0.9668241884631198,
-        -0.001383972778928163
-      ],
-      "confidence": 0.054901123046875,
-      "detection_count": 1,
-      "point_count": 7907,
-      "source_frame": "front_depth_camera_visual_link",
-      "map_frame": "odom",
-      "bbox": [
-        55.15625,
-        0.0,
-        416.09375,
-        241.2890625
-      ],
-      "mask_iou": [
-        [
-          0.4415777325630188,
-          0.745189905166626,
-          0.6914963722229004,
-          0.8694005012512207
-        ]
-      ],
-      "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-      "observations": [
-        {
-          "position_3d": [
-            -0.8862557260568671,
-            -1.3369175249056597,
-            0.520202611770015
-          ],
-          "confidence": 0.054901123046875,
-          "point_count": 7907,
-          "bbox": [
-            55.15625,
-            0.0,
-            416.09375,
-            241.2890625
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:59:24.330452+00:00"
-        }
-      ]
-    },
-    {
-      "id": "hs_008",
-      "label": "object",
-      "position_3d": [
-        -0.939942312651038,
-        -1.3243395892625824,
-        0.884268556804654
-      ],
-      "normal_vector": [
-        0.2759505690805205,
-        0.9611716482122672,
-        0.0005883001365004345
-      ],
-      "confidence": 0.051849365234375,
-      "detection_count": 1,
-      "point_count": 21096,
-      "source_frame": "front_depth_camera_visual_link",
-      "map_frame": "odom",
-      "bbox": [
-        49.84375,
-        0.0,
-        416.40625,
-        249.2578125
-      ],
-      "mask_iou": [
-        [
-          0.5347968339920044,
-          0.6534338593482971,
-          0.8074723482131958,
-          0.7480093240737915
-        ]
-      ],
-      "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-      "observations": [
-        {
-          "position_3d": [
-            -0.939942312651038,
-            -1.3243395892625824,
-            0.884268556804654
-          ],
-          "confidence": 0.051849365234375,
-          "point_count": 21096,
-          "bbox": [
-            49.84375,
-            0.0,
-            416.40625,
-            249.2578125
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:59:25.607936+00:00"
-        }
-      ]
-    },
-    {
-      "id": "hs_009",
-      "label": "object",
-      "position_3d": [
-        -1.2256956962907353,
-        -1.1066042094712434,
-        0.9252640892399447
-      ],
-      "normal_vector": [
-        -0.6014487207962974,
-        -0.7791780191858741,
-        -0.17397774029220445
-      ],
-      "confidence": 0.06756591796875,
-      "detection_count": 3,
-      "point_count": 133561,
-      "source_frame": "front_depth_camera_visual_link",
-      "map_frame": "odom",
-      "bbox": [
-        42.03125,
-        0.0,
-        412.34375,
-        274.8046875
-      ],
-      "mask_iou": [
-        [
-          0.9297966957092285,
-          0.6713375449180603,
-          0.9753175973892212,
-          0.9123283624649048
-        ]
-      ],
-      "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-      "observations": [
-        {
-          "position_3d": [
-            -1.2473689375751023,
-            -1.0908969947563463,
-            0.9049082585451816
-          ],
-          "confidence": 0.06756591796875,
-          "point_count": 40730,
-          "bbox": [
-            51.71875,
-            0.0,
-            418.59375,
-            250.8984375
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:59:26.340036+00:00"
-        },
-        {
-          "position_3d": [
-            -1.1857565590256485,
-            -1.11788665012102,
-            0.935294610685836
-          ],
-          "confidence": 0.053009033203125,
-          "point_count": 42363,
-          "bbox": [
-            47.1875,
-            0.0,
-            414.0625,
-            264.0234375
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:59:28.068274+00:00"
-        },
-        {
-          "position_3d": [
-            -1.241729431617053,
-            -1.1098101384181258,
-            0.9332725303151888
-          ],
-          "confidence": 0.061431884765625,
-          "point_count": 50468,
-          "bbox": [
-            42.03125,
-            0.0,
-            412.34375,
-            274.8046875
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:59:28.777122+00:00"
-        }
-      ]
-    },
-    {
-      "id": "hs_010",
-      "label": "object",
-      "position_3d": [
-        -1.2220111935277167,
-        -1.2793989423977237,
-        1.0310781023763722
-      ],
-      "normal_vector": [
-        0.20384818539717586,
-        0.44406217029804207,
-        -0.8624471606110757
-      ],
-      "confidence": 0.06396484375,
-      "detection_count": 4,
-      "point_count": 244422,
-      "source_frame": "front_depth_camera_visual_link",
-      "map_frame": "odom",
-      "bbox": [
-        0.0,
-        0.0,
-        302.421875,
-        309.609375
-      ],
-      "mask_iou": [
-        [
-          0.9291804432868958,
-          0.9636371731758118,
-          0.9736356735229492,
-          0.90540611743927
-        ]
-      ],
-      "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-      "observations": [
-        {
-          "position_3d": [
-            -1.236752308035171,
-            -1.32258366231112,
-            1.000734671912676
-          ],
-          "confidence": 0.06396484375,
-          "point_count": 62675,
-          "bbox": [
-            6.875,
-            0.0,
-            329.375,
-            291.2109375
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:59:34.103128+00:00"
-        },
-        {
-          "position_3d": [
-            -1.2329001367553922,
-            -1.272065420347197,
-            1.0267665890953754
-          ],
-          "confidence": 0.05975341796875,
-          "point_count": 60792,
-          "bbox": [
-            0.0,
-            0.0,
-            314.296875,
-            294.140625
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:59:34.244665+00:00"
-        },
-        {
-          "position_3d": [
-            -1.2091022129601545,
-            -1.2688613065324648,
-            1.0356306013364571
-          ],
-          "confidence": 0.0504150390625,
-          "point_count": 60425,
-          "bbox": [
-            0.0,
-            0.5859375,
-            305.078125,
-            306.6796875
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:59:34.628124+00:00"
-        },
-        {
-          "position_3d": [
-            -1.2086982109132018,
-            -1.2525685078872624,
-            1.062282385707403
-          ],
-          "confidence": 0.05242919921875,
-          "point_count": 60530,
-          "bbox": [
-            0.0,
-            0.0,
-            302.421875,
-            309.609375
-          ],
-          "points_file": "/home/susan/nano/src/samowl/object_points_map_0.pcd",
-          "timestamp": "2026-04-25T15:59:35.247096+00:00"
+          "timestamp": "2026-04-25T16:32:51.005654+00:00"
         }
       ]
     }
   ],
-  "updated_timestamp": "2026-04-25T15:59:35.247337+00:00"
+  "updated_timestamp": "2026-04-25T16:32:51.005785+00:00"
 }
