@@ -347,6 +347,14 @@ def project_mask_to_map_points(depth_path, mask_image, camera_model_path, max_po
         cols = cols[sample]
 
     z = depth[rows, cols].astype(np.float64) * float(camera_model.get("depth_scale", 0.001))
+    depth_min = float(camera_model.get("depth_min", 0.1))
+    depth_max = float(camera_model.get("depth_max", 10.0))
+    valid_z = np.isfinite(z) & (z >= depth_min) & (z <= depth_max)
+    if not valid_z.any():
+        return np.empty((0, 3), dtype=np.float64), camera_model
+    rows = rows[valid_z]
+    cols = cols[valid_z]
+    z    = z[valid_z]
     fx = float(camera_model["fx"])
     fy = float(camera_model["fy"])
     cx = float(camera_model["cx"])
