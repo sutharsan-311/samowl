@@ -95,3 +95,44 @@ class SceneGraph:
             'position': best['position'],
             'distance': self._dist(best['position'], reference),
         }
+
+    def cluster_by_proximity(self, radius: float) -> List[List[Dict]]:
+        """Group nodes into clusters using Union-Find on distance threshold.
+
+        Returns list of clusters ordered by size (largest first).
+        Each cluster is a list of node dicts {id, label, position, ...}.
+        """
+        if not self._nodes:
+            return []
+
+        # Union-Find data structure
+        parent = list(range(len(self._nodes)))
+
+        def find(x):
+            if parent[x] != x:
+                parent[x] = find(parent[x])
+            return parent[x]
+
+        def union(x, y):
+            px, py = find(x), find(y)
+            if px != py:
+                parent[px] = py
+
+        # Union any pair of nodes within radius
+        for i in range(len(self._nodes)):
+            for j in range(i + 1, len(self._nodes)):
+                dist = self._dist(self._nodes[i]['position'], self._nodes[j]['position'])
+                if dist <= radius:
+                    union(i, j)
+
+        # Group nodes by root parent
+        clusters_dict = {}
+        for i, node in enumerate(self._nodes):
+            root = find(i)
+            if root not in clusters_dict:
+                clusters_dict[root] = []
+            clusters_dict[root].append(node)
+
+        # Sort clusters by size (largest first)
+        clusters = sorted(clusters_dict.values(), key=len, reverse=True)
+        return clusters
