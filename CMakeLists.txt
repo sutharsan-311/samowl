@@ -54,6 +54,8 @@ install(PROGRAMS
   scripts/samowl_daemon.py
   scripts/scene_graph_node.py
   scripts/scene_query_node.py
+  scripts/scene_graph.py
+  scripts/scene_query_cli.py
   DESTINATION share/${PROJECT_NAME}/scripts
 )
 install(DIRECTORY data DESTINATION share/${PROJECT_NAME})
