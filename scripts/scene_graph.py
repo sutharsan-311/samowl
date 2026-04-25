@@ -136,3 +136,22 @@ class SceneGraph:
         # Sort clusters by size (largest first)
         clusters = sorted(clusters_dict.values(), key=len, reverse=True)
         return clusters
+
+    def objects_near(self, label: str, threshold: float) -> List[Dict]:
+        """Find all nodes within threshold distance of any node with matching label.
+
+        Returns list of node dicts (deduplicated by id).
+        """
+        anchors = [n for n in self._nodes if n['label'] == label]
+        if not anchors:
+            return []
+
+        nearby = {}  # id -> node dict
+        for anchor in anchors:
+            for node in self._nodes:
+                if node['id'] != anchor['id']:  # exclude anchor itself
+                    dist = self._dist(anchor['position'], node['position'])
+                    if dist <= threshold:
+                        nearby[node['id']] = node
+
+        return list(nearby.values())
