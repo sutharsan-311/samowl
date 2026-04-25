@@ -3,6 +3,7 @@
 
 import json
 import math
+import os
 import time
 from collections import defaultdict
 
@@ -39,6 +40,27 @@ class SceneGraphNode(Node):
     def __init__(self):
         super().__init__('scene_graph_node')
 
+        # Load thresholds from YAML config; fall back to module-level defaults.
+        self._near_threshold   = NEAR_THRESHOLD
+        self._match_threshold  = MATCH_THRESHOLD
+        self._create_threshold = CREATE_THRESHOLD
+        try:
+            import yaml
+            from ament_index_python.packages import get_package_share_directory
+            _cfg_path = os.path.join(get_package_share_directory('samowl'), 'config', 'samowl.yaml')
+            with open(_cfg_path) as _f:
+                _cfg = yaml.safe_load(_f)
+            if _cfg and 'graph' in _cfg:
+                _g = _cfg['graph']
+                self._near_threshold   = float(_g.get('near_threshold',   self._near_threshold))
+                self._match_threshold  = float(_g.get('match_threshold',  self._match_threshold))
+                self._create_threshold = float(_g.get('create_threshold', self._create_threshold))
+            self.get_logger().info(
+                f'Graph thresholds: near={self._near_threshold} match={self._match_threshold} '
+                f'create={self._create_threshold}')
+        except Exception as exc:
+            self.get_logger().warn(f'Could not load graph config: {exc} — using defaults')
+
         # { stable_id: {"id", "label", "position", "velocity", "last_seen"} }
         self.nodes: dict = {}
         # [{"source", "target", "relation"}]
@@ -72,6 +94,9 @@ class SceneGraphNode(Node):
 
         label    = data.get('label', '')
         position = data.get('position', [])
+        if len(position) == 3 and max(abs(v) for v in position) < 1e-3:
+            self.get_logger().warn(f'Rejecting origin detection for label={label!r}')
+            return
         if not label or len(position) != 3:
             return
 
@@ -107,7 +132,7 @@ class SceneGraphNode(Node):
         # Hysteresis: match if an existing node is within MATCH_THRESHOLD (0.6 m).
         # Only create a new node if the closest candidate is beyond CREATE_THRESHOLD
         # (0.5 m) — the gap prevents oscillation at the boundary.
-        if best_id is not None and best_dist < MATCH_THRESHOLD:
+        if best_id is not None and best_dist < self._match_threshold:
             node = self.nodes[best_id]
             dt   = now - node['last_seen']
 
@@ -124,7 +149,7 @@ class SceneGraphNode(Node):
 
             node['position']  = _update_position(node['position'], position)
             node['last_seen'] = now
-        elif best_dist >= CREATE_THRESHOLD:
+        elif best_dist >= self._create_threshold:
             new_id = f'{label}_{self._label_counters[label]}'
             self._label_counters[label] += 1
             self.nodes[new_id] = {
@@ -151,7 +176,7 @@ class SceneGraphNode(Node):
             for j in range(i + 1, len(ids)):
                 a = self.nodes[ids[i]]
                 b = self.nodes[ids[j]]
-                if _dist(a['position'], b['position']) < NEAR_THRESHOLD:
+                if _dist(a['position'], b['position']) < self._near_threshold:
                     edges.append({
                         'source':   ids[i],
                         'target':   ids[j],
