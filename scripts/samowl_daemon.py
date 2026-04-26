@@ -226,9 +226,11 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
     bundle.sam.set_image(image)
 
     base_pcd = Path(output_points) if output_points else None
+    base_mask = Path(output_mask)
     hotspot_map: dict = {}
     results_per_label = []
     primary_mask_iou = None
+    primary_mask_path = output_mask
 
     for idx, label in enumerate(label_order):
         det = by_label[label]
@@ -236,7 +238,10 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
         mask, mask_iou, _ = bundle.sam.predict(pts, pt_labels_sam)
         if idx == 0:
             primary_mask_iou = mask_iou
-        mask_image = save_mask(mask, output_mask, mask_threshold)
+        mask_path = str(base_mask.with_suffix("")) + f"_{idx}.png"
+        if idx == 0:
+            primary_mask_path = mask_path
+        mask_image = save_mask(mask, mask_path, mask_threshold)
 
         if idx == 0 and depth_image_path and output_depth_mask:
             save_masked_depth(depth_image_path, mask_image, output_depth_mask)
@@ -270,6 +275,7 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
             "centroid": centroid,
             "points_count": pts_count,
             "output_points": pcd_path,
+            "output_mask": mask_path,
         })
 
     best = results_per_label[0]
@@ -284,7 +290,7 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
         "label": best["label"],
         "mask_iou": primary_mask_iou.detach().cpu().numpy().tolist(),
         "output_boundary": str(output_boundary),
-        "output_mask": str(output_mask),
+        "output_mask": primary_mask_path,
         "output_depth_mask": output_depth_mask,
         "camera_model": camera_model_path,
         "output_points": best["output_points"],
