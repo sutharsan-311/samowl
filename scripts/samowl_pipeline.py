@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import types
 
 import numpy as np
 import torch
@@ -508,62 +509,104 @@ def main():
     if not detections:
         raise RuntimeError(f"No OWL detections found for prompt '{args.text}' at threshold {args.threshold}")
 
-    detection = max(detections, key=lambda item: item["score"])
-    detection["bbox"] = [
-        max(0.0, min(float(image.width - 1), float(detection["bbox"][0]))),
-        max(0.0, min(float(image.height - 1), float(detection["bbox"][1]))),
-        max(0.0, min(float(image.width - 1), float(detection["bbox"][2]))),
-        max(0.0, min(float(image.height - 1), float(detection["bbox"][3]))),
-    ]
-    draw_boundary(image, detection, output_boundary)
+    # Keep best detection per label; clamp bbox to image bounds.
+    by_label: dict = {}
+    for det in detections:
+        lbl = det["text"]
+        if lbl not in by_label or det["score"] > by_label[lbl]["score"]:
+            by_label[lbl] = det
+    for det in by_label.values():
+        det["bbox"] = [
+            max(0.0, min(float(image.width - 1), float(det["bbox"][0]))),
+            max(0.0, min(float(image.height - 1), float(det["bbox"][1]))),
+            max(0.0, min(float(image.width - 1), float(det["bbox"][2]))),
+            max(0.0, min(float(image.height - 1), float(det["bbox"][3]))),
+        ]
 
-    points, point_labels = bbox_to_points(detection["bbox"])
+    label_order = sorted(by_label, key=lambda lbl: by_label[lbl]["score"], reverse=True)
+    draw_boundary(image, by_label[label_order[0]], output_boundary)
+
+    base_mask = output_mask
+    base_pcd = Path(args.output_points) if args.output_points else None
     sam_predictor = Predictor(str(image_encoder), str(mask_decoder))
     sam_predictor.set_image(image)
-    mask, mask_iou, _ = sam_predictor.predict(points, point_labels)
-    mask_image = save_mask(mask, output_mask, args.mask_threshold)
-    if args.depth_image and args.output_depth_mask:
-        save_masked_depth(args.depth_image, mask_image, args.output_depth_mask)
 
     hotspot_map = {}
-    points_count = 0
-    if args.depth_image and args.camera_model and args.output_points:
-        map_points, camera_model = project_mask_to_map_points(
-            args.depth_image,
-            mask_image,
-            args.camera_model,
-            args.max_points,
-        )
-        points_count = int(len(map_points))
-        write_pcd(args.output_points, map_points)
-        normal = estimate_normal(map_points)
-        if args.output_hotspots:
-            hotspot_map = write_hotspot_json(
-                args.output_hotspots,
-                args,
-                detection,
-                mask_iou,
-                map_points,
-                normal,
-                camera_model,
-            )
+    results_per_label = []
+    primary_mask_iou = None
 
+    for idx, label in enumerate(label_order):
+        det = by_label[label]
+        pts, pt_labels_sam = bbox_to_points(det["bbox"])
+        mask, mask_iou, _ = sam_predictor.predict(pts, pt_labels_sam)
+        if idx == 0:
+            primary_mask_iou = mask_iou
+        mask_path = Path(str(base_mask.with_suffix("")) + f"_{idx}.png")
+        mask_image = save_mask(mask, mask_path, args.mask_threshold)
+
+        if idx == 0 and args.depth_image and args.output_depth_mask:
+            save_masked_depth(args.depth_image, mask_image, args.output_depth_mask)
+
+        pcd_path = str(base_pcd.with_suffix("")) + f"_{idx}.pcd" if base_pcd else ""
+        centroid = [0.0, 0.0, 0.0]
+        points_count = 0
+
+        if args.depth_image and args.camera_model and pcd_path:
+            map_points, camera_model = project_mask_to_map_points(
+                args.depth_image,
+                mask_image,
+                args.camera_model,
+                args.max_points,
+            )
+            points_count = int(len(map_points))
+            write_pcd(pcd_path, map_points)
+            if points_count > 0:
+                centroid = map_points.mean(axis=0).tolist()
+            normal = estimate_normal(map_points)
+            if args.output_hotspots:
+                hotspot_map = write_hotspot_json(
+                    args.output_hotspots,
+                    types.SimpleNamespace(
+                        room_id=args.room_id,
+                        merge_radius=args.merge_radius,
+                        text=label,
+                        output_points=pcd_path,
+                    ),
+                    det,
+                    mask_iou,
+                    map_points,
+                    normal,
+                    camera_model,
+                )
+
+        results_per_label.append({
+            "label": label,
+            "score": float(det["score"]),
+            "bbox": det["bbox"],
+            "centroid": centroid,
+            "points_count": points_count,
+            "output_mask": str(mask_path),
+            "output_points": pcd_path,
+        })
+
+    best = results_per_label[0]
     metadata = {
         "image": str(image_path),
         "depth_image": args.depth_image,
         "text": args.text,
-        "bbox": detection["bbox"],
-        "score": detection["score"],
-        "label": detection["label"],
-        "mask_iou": mask_iou.detach().cpu().numpy().tolist(),
+        "bbox": best["bbox"],
+        "score": best["score"],
+        "label": best["label"],
+        "mask_iou": primary_mask_iou.detach().cpu().numpy().tolist(),
         "output_boundary": str(output_boundary),
-        "output_mask": str(output_mask),
+        "output_mask": best["output_mask"],
         "output_depth_mask": args.output_depth_mask,
         "camera_model": args.camera_model,
-        "output_points": args.output_points,
+        "output_points": best["output_points"],
         "output_hotspots": args.output_hotspots,
-        "points_count": points_count,
+        "points_count": best["points_count"],
         "hotspot_map": hotspot_map,
+        "detections": results_per_label,
     }
     if args.metadata:
         metadata_path = Path(args.metadata)
