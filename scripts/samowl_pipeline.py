@@ -545,34 +545,33 @@ def main():
     if not detections:
         raise RuntimeError(f"No OWL detections found for prompt '{args.text}' at threshold {args.threshold}")
 
-    # Keep best detection per label; clamp bbox to image bounds.
-    by_label: dict = {}
+    # Per-class NMS; clamp bbox to image bounds.
+    detections = nms_detections(detections)
     for det in detections:
-        lbl = det["text"]
-        if lbl not in by_label or det["score"] > by_label[lbl]["score"]:
-            by_label[lbl] = det
-    for det in by_label.values():
         det["bbox"] = [
             max(0.0, min(float(image.width - 1), float(det["bbox"][0]))),
             max(0.0, min(float(image.height - 1), float(det["bbox"][1]))),
             max(0.0, min(float(image.width - 1), float(det["bbox"][2]))),
             max(0.0, min(float(image.height - 1), float(det["bbox"][3]))),
         ]
-
-    label_order = sorted(by_label, key=lambda lbl: by_label[lbl]["score"], reverse=True)
-    draw_boundary(image, by_label[label_order[0]], output_boundary)
+    print(
+        f"[samowl] {len(detections)} detection(s) after NMS: "
+        + ", ".join(f"{d['text']} {d['score']:.2f}" for d in detections),
+        file=sys.stderr,
+    )
+    draw_boundary(image, detections[0], output_boundary)
 
     base_mask = output_mask
     base_pcd = Path(args.output_points) if args.output_points else None
     sam_predictor = Predictor(str(image_encoder), str(mask_decoder))
     sam_predictor.set_image(image)
 
-    hotspot_map = {}
+    all_hotspot_maps: list = []
     results_per_label = []
     primary_mask_iou = None
 
-    for idx, label in enumerate(label_order):
-        det = by_label[label]
+    for idx, det in enumerate(detections):
+        label = det["text"]
         pts, pt_labels_sam = bbox_to_points(det["bbox"])
         mask, mask_iou, _ = sam_predictor.predict(pts, pt_labels_sam)
         if idx == 0:
@@ -600,7 +599,7 @@ def main():
                 centroid = map_points.mean(axis=0).tolist()
             normal = estimate_normal(map_points)
             if args.output_hotspots:
-                hotspot_map = write_hotspot_json(
+                hm = write_hotspot_json(
                     args.output_hotspots,
                     types.SimpleNamespace(
                         room_id=args.room_id,
@@ -614,6 +613,7 @@ def main():
                     normal,
                     camera_model,
                 )
+                all_hotspot_maps.append(hm)
 
         results_per_label.append({
             "label": label,
@@ -626,6 +626,7 @@ def main():
         })
 
     best = results_per_label[0]
+    hotspot_map = all_hotspot_maps[-1] if all_hotspot_maps else {}
     metadata = {
         "image": str(image_path),
         "depth_image": args.depth_image,

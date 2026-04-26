@@ -205,37 +205,31 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
             "error": f"No OWL detections for prompt '{text}' at threshold {threshold}",
         }
 
-    # Keep the best-scoring box per label and clamp to image bounds.
-    by_label: dict = {}
+    # Per-class NMS; clamp bbox to image bounds.
+    raw_detections = nms_detections(raw_detections)
     for det in raw_detections:
-        lbl = det["text"]
-        if lbl not in by_label or det["score"] > by_label[lbl]["score"]:
-            by_label[lbl] = det
-    for det in by_label.values():
         det["bbox"] = [
             max(0.0, min(float(image.width - 1), float(det["bbox"][0]))),
             max(0.0, min(float(image.height - 1), float(det["bbox"][1]))),
             max(0.0, min(float(image.width - 1), float(det["bbox"][2]))),
             max(0.0, min(float(image.height - 1), float(det["bbox"][3]))),
         ]
+    log.info("%d detection(s) after NMS: %s", len(raw_detections),
+             ", ".join(f"{d['text']} {d['score']:.2f}" for d in raw_detections))
+    draw_boundary(image, raw_detections[0], output_boundary)
 
-    # Order by score descending so the primary (highest-score) label is first.
-    label_order = sorted(by_label, key=lambda l: by_label[l]["score"], reverse=True)
-    primary = by_label[label_order[0]]
-    draw_boundary(image, primary, output_boundary)
-
-    # Encode image once; decode mask per label.
+    # Encode image once; decode mask per detection.
     bundle.sam.set_image(image)
 
     base_pcd = Path(output_points) if output_points else None
     base_mask = Path(output_mask)
-    hotspot_map: dict = {}
+    all_hotspot_maps: list = []
     results_per_label = []
     primary_mask_iou = None
     primary_mask_path = output_mask
 
-    for idx, label in enumerate(label_order):
-        det = by_label[label]
+    for idx, det in enumerate(raw_detections):
+        label = det["text"]
         pts, pt_labels_sam = bbox_to_points(det["bbox"])
         mask, mask_iou, _ = bundle.sam.predict(pts, pt_labels_sam)
         if idx == 0:
@@ -267,8 +261,9 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
                     text=label,
                     output_points=pcd_path,
                 )
-                hotspot_map = write_hotspot_json(
+                hm = write_hotspot_json(
                     output_hotspots, args_ns, det, mask_iou, map_points, normal, camera_model)
+                all_hotspot_maps.append(hm)
 
         results_per_label.append({
             "label": label,
@@ -281,6 +276,7 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
         })
 
     best = results_per_label[0]
+    hotspot_map = all_hotspot_maps[-1] if all_hotspot_maps else {}
     return {
         "success": True,
         "image": str(image_path),
