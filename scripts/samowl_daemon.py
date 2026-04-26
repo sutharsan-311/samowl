@@ -195,7 +195,8 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
 
     # OWL-ViT: update threshold dynamically without reloading the model.
     bundle.owl.threshold = threshold
-    raw_detections = bundle.owl.predict(image, texts=[text])
+    texts = [t.strip() for t in text.split(",") if t.strip()]
+    raw_detections = bundle.owl.predict(image, texts=texts)
     if not raw_detections:
         return {
             "success": False,

@@ -503,7 +503,8 @@ def main():
     image = Image.open(image_path).convert("RGB")
 
     detector = OwlVit(str(owl_model), str(owl_encoder), args.threshold)
-    detections = detector.predict(image, texts=[args.text])
+    texts = [t.strip() for t in args.text.split(",") if t.strip()]
+    detections = detector.predict(image, texts=texts)
     if not detections:
         raise RuntimeError(f"No OWL detections found for prompt '{args.text}' at threshold {args.threshold}")
 
