@@ -1101,6 +1101,7 @@ private:
           const double ts = frame.frame_timestamp;
 
           if (!result.detections.empty()) {
+            int det_idx = 0;
             for (const auto & det : result.detections) {
               if (options_.mode == "scan") {
                 constexpr float kEps = 1e-3f;
@@ -1116,7 +1117,7 @@ private:
                 }
               }
               // Publish markers in both modes.
-              publish_objects(det.cx, det.cy, det.cz, det.label, det.score, frame.rgb_msg->header.stamp);
+              publish_objects(det.cx, det.cy, det.cz, det.label, det.score, frame.rgb_msg->header.stamp, det_idx++);
               publish_detections(det.cx, det.cy, det.cz, det.label, det.score, frame.rgb_msg->header.stamp);
               // In live mode also stream the PointCloud2; in scan mode the daemon
               // writes PCD files already handled by hotspot fusion.
@@ -1386,14 +1387,18 @@ private:
     float cx, float cy, float cz,
     const std::string & label,
     float score,
-    const builtin_interfaces::msg::Time & stamp)
+    const builtin_interfaces::msg::Time & stamp,
+    int marker_id = 0)
   {
     visualization_msgs::msg::MarkerArray array;
 
-    // Clear stale markers from previous frames before adding new ones.
-    visualization_msgs::msg::Marker clear;
-    clear.action = visualization_msgs::msg::Marker::DELETEALL;
-    array.markers.push_back(clear);
+    // DELETEALL only on the first detection in a frame so subsequent detections
+    // in the same frame do not erase each other's markers.
+    if (marker_id == 0) {
+      visualization_msgs::msg::Marker clear;
+      clear.action = visualization_msgs::msg::Marker::DELETEALL;
+      array.markers.push_back(clear);
+    }
 
     const float c = std::clamp(score, 0.0f, 1.0f);
     const auto lifetime = rclcpp::Duration::from_seconds(0.3);
@@ -1402,7 +1407,7 @@ private:
     sphere.header.frame_id = options_.map_frame;
     sphere.header.stamp = stamp;
     sphere.ns = "samowl_objects";
-    sphere.id = 0;
+    sphere.id = marker_id;
     sphere.type = visualization_msgs::msg::Marker::SPHERE;
     sphere.action = visualization_msgs::msg::Marker::ADD;
     sphere.pose.position.x = cx;
@@ -1419,7 +1424,7 @@ private:
     visualization_msgs::msg::Marker text;
     text.header = sphere.header;
     text.ns = "samowl_labels";
-    text.id = 0;
+    text.id = marker_id;
     text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
     text.action = visualization_msgs::msg::Marker::ADD;
     text.pose.position.x = cx;
