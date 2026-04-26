@@ -105,6 +105,7 @@ estimate_normal = _pipeline.estimate_normal
 write_pcd = _pipeline.write_pcd
 write_hotspot_json = _pipeline.write_hotspot_json
 resolve_existing_path = _pipeline.resolve_existing_path
+nms_detections = _pipeline.nms_detections
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -196,6 +197,7 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
     # OWL-ViT: update threshold dynamically without reloading the model.
     bundle.owl.threshold = threshold
     texts = [t.strip() for t in text.split(",") if t.strip()]
+    log.info("Prompt split into %d class(es): %s", len(texts), texts)
     raw_detections = bundle.owl.predict(image, texts=texts)
     if not raw_detections:
         return {

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import sys
 import types
 
 import numpy as np
@@ -452,6 +453,40 @@ def write_hotspot_json(path, args, detection, mask_iou, map_points, normal, came
     return hotspot_map
 
 
+def _iou(box_a, box_b) -> float:
+    """Compute IoU between two [x1,y1,x2,y2] boxes."""
+    xa = max(box_a[0], box_b[0])
+    ya = max(box_a[1], box_b[1])
+    xb = min(box_a[2], box_b[2])
+    yb = min(box_a[3], box_b[3])
+    inter = max(0.0, xb - xa) * max(0.0, yb - ya)
+    if inter == 0.0:
+        return 0.0
+    area_a = (box_a[2] - box_a[0]) * (box_a[3] - box_a[1])
+    area_b = (box_b[2] - box_b[0]) * (box_b[3] - box_b[1])
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
+
+
+def nms_detections(detections: list, iou_threshold: float = 0.5) -> list:
+    """Per-class greedy NMS: keep highest-scoring non-overlapping boxes within each label.
+
+    Returns all kept detections sorted by score descending.
+    """
+    by_text: dict = {}
+    for det in detections:
+        by_text.setdefault(det["text"], []).append(det)
+    result = []
+    for text_dets in by_text.values():
+        sorted_dets = sorted(text_dets, key=lambda d: d["score"], reverse=True)
+        kept: list = []
+        for det in sorted_dets:
+            if not any(_iou(det["bbox"], k["bbox"]) > iou_threshold for k in kept):
+                kept.append(det)
+        result.extend(kept)
+    return sorted(result, key=lambda d: d["score"], reverse=True)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Detect a text prompt with OWL, prompt SAM with the box, and save the mask."
@@ -505,6 +540,7 @@ def main():
 
     detector = OwlVit(str(owl_model), str(owl_encoder), args.threshold)
     texts = [t.strip() for t in args.text.split(",") if t.strip()]
+    print(f"[samowl] Prompt split into {len(texts)} class(es): {texts}", file=sys.stderr)
     detections = detector.predict(image, texts=texts)
     if not detections:
         raise RuntimeError(f"No OWL detections found for prompt '{args.text}' at threshold {args.threshold}")
