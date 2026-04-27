@@ -171,6 +171,7 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
     camera_model_path = req.get("camera_model_path", "")
     threshold = get_param(req, config, "detection", "threshold", 0.1, float)
     mask_threshold = get_param(req, config, "detection", "mask_threshold", 0.0, float)
+    max_detections = get_param(req, config, "detection", "max_detections", 5, int)
     output_mask = get_param(req, config, "outputs", "output_mask", "mask.png")
     output_boundary = get_param(req, config, "outputs", "output_boundary", "boundary.png")
     output_depth_mask = get_param(req, config, "outputs", "output_depth_mask", "")
@@ -206,7 +207,7 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
         }
 
     # Per-class NMS; clamp bbox to image bounds.
-    raw_detections = nms_detections(raw_detections)
+    raw_detections = nms_detections(raw_detections)[:max_detections]
     for det in raw_detections:
         det["bbox"] = [
             max(0.0, min(float(image.width - 1), float(det["bbox"][0]))),
