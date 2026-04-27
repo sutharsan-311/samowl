@@ -61,7 +61,9 @@ class NanoOwlPredictor:
         W, H = image.size
         img_t = self._nano.image_preprocessor.preprocess_pil_image(image)
         roi = torch.tensor([[0, 0, W, H]], dtype=img_t.dtype, device=img_t.device)
-        roi_img, _ = self._nano.extract_rois(img_t, roi, pad_square=True)
+        # pad_square=False: image is resized directly to 768×768; pred_boxes [0,1] map as
+        # x_px = x_norm * W, y_px = y_norm * H — no ROI offset correction needed.
+        roi_img, _ = self._nano.extract_rois(img_t, roi, pad_square=False)
         with torch.no_grad():
             _, image_class_embeds, logit_shift, logit_scale, pred_boxes = self.image_encoder(roi_img)
         image_class_embeds = image_class_embeds.half()
@@ -71,29 +73,35 @@ class NanoOwlPredictor:
 
         logits = torch.einsum("bpd,qd->bpq", image_class_embeds, text_embeds)  # (1, P, Q)
         logits = (logits + logit_shift) * logit_scale
-        scores_all = torch.sigmoid(logits)[0]                       # (P, Q)
+        scores = torch.sigmoid(logits)[0]                           # (P, Q)
 
-        detections = []
-        for q_idx, text in enumerate(texts):
-            q_scores = scores_all[:, q_idx]                         # (P,)
-            keep = q_scores >= self.threshold
-            if not keep.any():
-                continue
-            boxes_norm = pred_boxes[0][keep]                        # (K, 4) cx,cy,w,h in [0,1]
-            cx, cy, bw, bh = boxes_norm.unbind(-1)
-            S = max(W, H)  # pad_square makes the encoder space S×S, not W×H
-            x1 = ((cx - bw / 2) * S).clamp(0, W)
-            y1 = ((cy - bh / 2) * S).clamp(0, H)
-            x2 = ((cx + bw / 2) * S).clamp(0, W)
-            y2 = ((cy + bh / 2) * S).clamp(0, H)
-            for i, score in enumerate(q_scores[keep]):
-                detections.append({
-                    "bbox": [x1[i].item(), y1[i].item(), x2[i].item(), y2[i].item()],
-                    "score": float(score),
-                    "label": q_idx,
-                    "text": text,
-                })
-        return detections
+        # Winner-takes-all: each patch is assigned to its highest-scoring class only,
+        # then filtered by threshold. Prevents the same patch firing for multiple classes.
+        scores_max, labels = scores.max(dim=-1)                     # (P,), (P,)
+        keep = scores_max >= self.threshold
+        if not keep.any():
+            return []
+
+        # pred_boxes from the TRT engine are already in corner format (x1,y1,x2,y2),
+        # normalized [0,1] relative to the input region. With pad_square=False and
+        # roi=[0,0,W,H], pixel coords are simply norm * [W,H,W,H].
+        boxes_norm = pred_boxes[0][keep]                            # (K, 4)
+        scale = torch.tensor([W, H, W, H], dtype=boxes_norm.dtype, device=boxes_norm.device)
+        boxes_px = (boxes_norm * scale).clamp(min=0)
+        boxes_px[:, 0::2] = boxes_px[:, 0::2].clamp(max=W)
+        boxes_px[:, 1::2] = boxes_px[:, 1::2].clamp(max=H)
+
+        kept_scores = scores_max[keep]
+        kept_labels = labels[keep]
+        return [
+            {
+                "bbox": box.tolist(),
+                "score": float(score),
+                "label": int(lbl),
+                "text": texts[int(lbl)],
+            }
+            for box, score, lbl in zip(boxes_px, kept_scores, kept_labels)
+        ]
 
 
 # Backward-compatible alias.
