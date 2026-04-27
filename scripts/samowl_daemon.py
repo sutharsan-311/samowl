@@ -31,7 +31,7 @@ Response fields (on success)
   text                 : str
   bbox                 : list[float]
   score                : float
-  label                : int
+  label                : str   (text label, e.g. "hospital bed")
   mask_iou             : list
   output_boundary      : str
   output_mask          : str
