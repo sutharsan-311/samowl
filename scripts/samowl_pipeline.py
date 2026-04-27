@@ -15,7 +15,18 @@ import tensorrt as trt
 from PIL import Image, ImageDraw, ImageFont
 from torch2trt import TRTModule
 from transformers import OwlViTProcessor, OwlViTModel
-from nanoowl.owl_predictor import OwlPredictor as _NanoOwlRef
+from nanoowl.image_preprocessor import ImagePreprocessor as _ImagePreprocessor
+
+
+_OWL_IMAGE_SIZES = {
+    "google/owlvit-base-patch32": 768, "owlvit-base-patch32": 768,
+    "google/owlvit-base-patch16": 768, "owlvit-base-patch16": 768,
+    "google/owlvit-large-patch14": 840, "owlvit-large-patch14": 840,
+}
+
+
+def _owl_image_size(model_name: str) -> int:
+    return _OWL_IMAGE_SIZES.get(Path(model_name).name, _OWL_IMAGE_SIZES.get(model_name, 768))
 
 
 def _load_nanoowl_encoder(path: str) -> "TRTModule":
@@ -40,8 +51,9 @@ class NanoOwlPredictor:
         self.image_encoder = _load_nanoowl_encoder(image_encoder_engine)
         self.threshold = threshold
         self._text_cache: dict = {}
-        # Use NanoOWL's image preprocessor and ROI extractor for correct square-pad resize
-        self._nano = _NanoOwlRef(image_encoder_engine=image_encoder_engine)
+        self._image_size = _owl_image_size(model_name)
+        self._preprocessor = _ImagePreprocessor().cuda()
+        self._preprocessor.train(False)
 
     def _encode_text(self, texts: tuple) -> torch.Tensor:
         if texts not in self._text_cache:
@@ -59,11 +71,10 @@ class NanoOwlPredictor:
         text_embeds = self._encode_text(texts)                      # (Q, 512)
 
         W, H = image.size
-        img_t = self._nano.image_preprocessor.preprocess_pil_image(image)
-        roi = torch.tensor([[0, 0, W, H]], dtype=img_t.dtype, device=img_t.device)
-        # pad_square=False: image is resized directly to 768×768; pred_boxes [0,1] map as
-        # x_px = x_norm * W, y_px = y_norm * H — no ROI offset correction needed.
-        roi_img, _ = self._nano.extract_rois(img_t, roi, pad_square=False)
+        img_t = self._preprocessor.preprocess_pil_image(image)
+        # Resize full image to the model's input size; pred_boxes [0,1] then map as
+        # x_px = x_norm * W, y_px = y_norm * H with no ROI offset correction needed.
+        roi_img = F.interpolate(img_t, size=(self._image_size, self._image_size), mode="bilinear", align_corners=False)
         with torch.no_grad():
             _, image_class_embeds, logit_shift, logit_scale, pred_boxes = self.image_encoder(roi_img)
         image_class_embeds = image_class_embeds.half()
