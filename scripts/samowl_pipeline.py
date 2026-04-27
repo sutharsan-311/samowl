@@ -81,10 +81,11 @@ class NanoOwlPredictor:
                 continue
             boxes_norm = pred_boxes[0][keep]                        # (K, 4) cx,cy,w,h in [0,1]
             cx, cy, bw, bh = boxes_norm.unbind(-1)
-            x1 = ((cx - bw / 2) * W).clamp(0, W)
-            y1 = ((cy - bh / 2) * H).clamp(0, H)
-            x2 = ((cx + bw / 2) * W).clamp(0, W)
-            y2 = ((cy + bh / 2) * H).clamp(0, H)
+            S = max(W, H)  # pad_square makes the encoder space S×S, not W×H
+            x1 = ((cx - bw / 2) * S).clamp(0, W)
+            y1 = ((cy - bh / 2) * S).clamp(0, H)
+            x2 = ((cx + bw / 2) * S).clamp(0, W)
+            y2 = ((cy + bh / 2) * S).clamp(0, H)
             for i, score in enumerate(q_scores[keep]):
                 detections.append({
                     "bbox": [x1[i].item(), y1[i].item(), x2[i].item(), y2[i].item()],
