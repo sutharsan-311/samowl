@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw, ImageFont
 from torch2trt import TRTModule
 from transformers import OwlViTProcessor, OwlViTModel
 from nanoowl.image_preprocessor import ImagePreprocessor as _ImagePreprocessor
+from nanoowl.owl_predictor import OwlPredictor as _OwlPredictor, OwlEncodeTextOutput as _OwlEncodeTextOutput
 
 
 _OWL_IMAGE_SIZES = {
@@ -29,75 +30,63 @@ def _owl_image_size(model_name: str) -> int:
     return _OWL_IMAGE_SIZES.get(Path(model_name).name, _OWL_IMAGE_SIZES.get(model_name, 768))
 
 
-def _load_nanoowl_encoder(path: str) -> "TRTModule":
-    with trt.Logger() as logger, trt.Runtime(logger) as runtime:
-        with open(path, "rb") as fh:
-            engine = runtime.deserialize_cuda_engine(fh.read())
-    return TRTModule(
-        engine=engine,
-        input_names=["image"],
-        output_names=["image_embeds", "image_class_embeds", "logit_shift", "logit_scale", "pred_boxes"],
-    )
-
-
 class NanoOwlPredictor:
-    """OWL-ViT with TRT vision encoder and cached PyTorch text encoder."""
+    """OWL-ViT detector: nanoowl TRT image encoder + cached PyTorch text encoder."""
 
     def __init__(self, model_name: str, image_encoder_engine: str, threshold: float = 0.3):
         self.processor = OwlViTProcessor.from_pretrained(model_name, local_files_only=True)
         self.text_model = OwlViTModel.from_pretrained(model_name, local_files_only=True)
         self.text_model = self.text_model.cuda().half()
         self.text_model.train(False)
-        self.image_encoder = _load_nanoowl_encoder(image_encoder_engine)
+        # Proper nanoowl wrapper: returns OwlEncodeImageOutput and handles batched ROIs.
+        self.image_encoder = _OwlPredictor.load_image_encoder_engine(image_encoder_engine)
         self.threshold = threshold
         self._text_cache: dict = {}
         self._image_size = _owl_image_size(model_name)
         self._preprocessor = _ImagePreprocessor().cuda()
         self._preprocessor.train(False)
 
-    def _encode_text(self, texts: tuple) -> torch.Tensor:
+    def _encode_text(self, texts: tuple) -> "_OwlEncodeTextOutput":
         if texts not in self._text_cache:
             inputs = self.processor(text=list(texts), return_tensors="pt", padding=True)
             inputs = {k: v.cuda() for k, v in inputs.items()}
             with torch.no_grad():
                 out = self.text_model.text_model(**inputs)
-                embeds = self.text_model.text_projection(out.pooler_output).half()  # (Q, 512)
+                embeds = self.text_model.text_projection(out.pooler_output).float()  # (Q, 512) fp32
             embeds = embeds / embeds.norm(dim=-1, keepdim=True)
-            self._text_cache[texts] = embeds
+            self._text_cache[texts] = _OwlEncodeTextOutput(text_embeds=embeds)
         return self._text_cache[texts]
 
     def predict(self, image: "Image.Image", texts) -> list:
         texts = tuple(texts)
-        text_embeds = self._encode_text(texts)                      # (Q, 512)
+        text_enc = self._encode_text(texts)
 
         W, H = image.size
         img_t = self._preprocessor.preprocess_pil_image(image)
-        # Resize full image to the model's input size; pred_boxes [0,1] then map as
+        # Resize full image to the model's input size; pred_boxes [0,1] map as
         # x_px = x_norm * W, y_px = y_norm * H with no ROI offset correction needed.
         roi_img = F.interpolate(img_t, size=(self._image_size, self._image_size), mode="bilinear", align_corners=False)
-        with torch.no_grad():
-            _, image_class_embeds, logit_shift, logit_scale, pred_boxes = self.image_encoder(roi_img)
-        image_class_embeds = image_class_embeds.half()
-        image_class_embeds = image_class_embeds / (torch.linalg.norm(image_class_embeds.float(), dim=-1, keepdim=True).half() + 1e-6)
-        logit_shift = logit_shift.half()
-        logit_scale = logit_scale.half()
 
-        logits = torch.einsum("bpd,qd->bpq", image_class_embeds, text_embeds)  # (1, P, Q)
-        logits = (logits + logit_shift) * logit_scale
-        scores = torch.sigmoid(logits)[0]                           # (P, Q)
+        image_enc = self.image_encoder(roi_img)  # OwlEncodeImageOutput (float32)
 
-        # Winner-takes-all: each patch is assigned to its highest-scoring class only,
-        # then filtered by threshold. Prevents the same patch firing for multiple classes.
-        scores_max, labels = scores.max(dim=-1)                     # (P,), (P,)
+        # Normalize in float32 — avoids fp16 underflow on low-magnitude background patches.
+        image_class_embeds = image_enc.image_class_embeds.float()
+        image_class_embeds = image_class_embeds / (torch.linalg.norm(image_class_embeds, dim=-1, keepdim=True) + 1e-6)
+        text_embeds = text_enc.text_embeds  # already float32 and L2-normalized
+
+        logits = torch.einsum("bpd,qd->bpq", image_class_embeds, text_embeds)           # (1, P, Q)
+        logits = (logits + image_enc.logit_shift.float()) * image_enc.logit_scale.float()
+        scores = torch.sigmoid(logits)[0]                                                 # (P, Q)
+
+        # Winner-takes-all: each patch assigned to its single highest-scoring class only.
+        scores_max, labels = scores.max(dim=-1)
         keep = scores_max >= self.threshold
         if not keep.any():
             return []
 
-        # pred_boxes from the TRT engine are already in corner format (x1,y1,x2,y2),
-        # normalized [0,1] relative to the input region. With pad_square=False and
-        # roi=[0,0,W,H], pixel coords are simply norm * [W,H,W,H].
-        boxes_norm = pred_boxes[0][keep]                            # (K, 4)
-        scale = torch.tensor([W, H, W, H], dtype=boxes_norm.dtype, device=boxes_norm.device)
+        # pred_boxes are corner format (x1,y1,x2,y2) normalized [0,1]; scale to pixels.
+        boxes_norm = image_enc.pred_boxes[0][keep].float()
+        scale = torch.tensor([W, H, W, H], device=boxes_norm.device)
         boxes_px = (boxes_norm * scale).clamp(min=0)
         boxes_px[:, 0::2] = boxes_px[:, 0::2].clamp(max=W)
         boxes_px[:, 1::2] = boxes_px[:, 1::2].clamp(max=H)
@@ -105,12 +94,7 @@ class NanoOwlPredictor:
         kept_scores = scores_max[keep]
         kept_labels = labels[keep]
         return [
-            {
-                "bbox": box.tolist(),
-                "score": float(score),
-                "label": int(lbl),
-                "text": texts[int(lbl)],
-            }
+            {"bbox": box.tolist(), "score": float(score), "label": int(lbl), "text": texts[int(lbl)]}
             for box, score, lbl in zip(boxes_px, kept_scores, kept_labels)
         ]
 
