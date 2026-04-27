@@ -217,7 +217,7 @@ def _run_inference(req: dict, bundle: ModelBundle, config: dict) -> dict:
         ]
     log.info("%d detection(s) after NMS: %s", len(raw_detections),
              ", ".join(f"{d['text']} {d['score']:.2f}" for d in raw_detections))
-    draw_boundary(image, raw_detections[0], output_boundary)
+    draw_boundary(image, raw_detections, output_boundary)
 
     # Encode image once; decode mask per detection.
     bundle.sam.set_image(image)
