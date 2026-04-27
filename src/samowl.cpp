@@ -1105,6 +1105,17 @@ private:
         run_options.depth_image = depth_path.string();
         run_options.camera_model = camera_model_path.string();
 
+        // Per-frame stamped output paths so each frame's mask and boundary are
+        // saved independently rather than overwriting a shared file.
+        auto stamped_path = [&](const std::string & base) -> std::string {
+          if (base.empty()) return base;
+          const fs::path p{base};
+          return (p.parent_path() /
+            (p.stem().string() + "_" + frame.stamp + p.extension().string())).string();
+        };
+        run_options.output_mask     = stamped_path(options_.output_mask);
+        run_options.output_boundary = stamped_path(options_.output_boundary);
+
         RCLCPP_INFO(get_logger(), "[worker] Running OWL + SAM on frame");
         ParsedResult result;
         last_status_ = run_python(run_options, script_, &result);
