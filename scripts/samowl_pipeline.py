@@ -247,19 +247,22 @@ def bbox_to_points(bbox):
     )
 
 
-def draw_boundary(image, detection, output_path):
+def draw_boundary(image, detections, output_path):
     canvas = image.copy()
     draw = ImageDraw.Draw(canvas)
-    bbox = [int(round(v)) for v in detection["bbox"]]
-    label = f'{detection["text"]} {detection["score"]:.2f}'
-    draw.rectangle(bbox, outline=(0, 255, 0), width=4)
-    try:
-        font = ImageFont.load_default()
-        text_box = draw.textbbox((bbox[0], bbox[1]), label, font=font)
-        draw.rectangle(text_box, fill=(0, 255, 0))
-        draw.text((bbox[0], bbox[1]), label, fill=(0, 0, 0), font=font)
-    except Exception:
-        draw.text((bbox[0], bbox[1]), label, fill=(0, 255, 0))
+    if not isinstance(detections, list):
+        detections = [detections]
+    for detection in detections:
+        bbox = [int(round(v)) for v in detection["bbox"]]
+        label = f'{detection["text"]} {detection["score"]:.2f}'
+        draw.rectangle(bbox, outline=(0, 255, 0), width=4)
+        try:
+            font = ImageFont.load_default()
+            text_box = draw.textbbox((bbox[0], bbox[1]), label, font=font)
+            draw.rectangle(text_box, fill=(0, 255, 0))
+            draw.text((bbox[0], bbox[1]), label, fill=(0, 0, 0), font=font)
+        except Exception:
+            draw.text((bbox[0], bbox[1]), label, fill=(0, 255, 0))
     canvas.save(output_path)
 
 
@@ -562,7 +565,7 @@ def main():
         + ", ".join(f"{d['text']} {d['score']:.2f}" for d in detections),
         file=sys.stderr,
     )
-    draw_boundary(image, detections[0], output_boundary)
+    draw_boundary(image, detections, output_boundary)
 
     base_mask = output_mask
     base_pcd = Path(args.output_points) if args.output_points else None
