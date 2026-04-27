@@ -3,3 +3,6 @@ data/
 *.safetensors
 *.pt
 *.onnx
+rosbag2_*/
+*.mcap
+*.db3
