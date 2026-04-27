@@ -32,7 +32,7 @@ def _load_nanoowl_encoder(path: str) -> "TRTModule":
 class NanoOwlPredictor:
     """OWL-ViT with TRT vision encoder and cached PyTorch text encoder."""
 
-    def __init__(self, model_name: str, image_encoder_engine: str, threshold: float = 0.1):
+    def __init__(self, model_name: str, image_encoder_engine: str, threshold: float = 0.3):
         self.processor = OwlViTProcessor.from_pretrained(model_name, local_files_only=True)
         self.text_model = OwlViTModel.from_pretrained(model_name, local_files_only=True)
         self.text_model = self.text_model.cuda().half()
@@ -507,7 +507,9 @@ def parse_args():
     parser.add_argument("--owl-encoder", default="data/owl_image_encoder_patch32.engine", help="NanoOWL TRT vision encoder engine.")
     parser.add_argument("--image-encoder", default="data/resnet18_image_encoder.engine")
     parser.add_argument("--mask-decoder", default="data/mobile_sam_mask_decoder.engine")
-    parser.add_argument("--threshold", type=float, default=0.1, help="OWL score threshold.")
+    parser.add_argument("--threshold", type=float, default=0.3, help="OWL score threshold.")
+    parser.add_argument("--max-detections", type=int, default=5,
+                        help="Maximum detections to segment per frame after NMS.")
     parser.add_argument("--mask-threshold", type=float, default=0.0, help="SAM logits threshold.")
     parser.add_argument(
         "--metadata",
@@ -546,7 +548,7 @@ def main():
         raise RuntimeError(f"No OWL detections found for prompt '{args.text}' at threshold {args.threshold}")
 
     # Per-class NMS; clamp bbox to image bounds.
-    detections = nms_detections(detections)
+    detections = nms_detections(detections)[:args.max_detections]
     for det in detections:
         det["bbox"] = [
             max(0.0, min(float(image.width - 1), float(det["bbox"][0]))),
