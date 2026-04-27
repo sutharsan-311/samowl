@@ -70,7 +70,8 @@ struct Options
   std::string owl_encoder{"data/owl_image_encoder_patch32.engine"};
   std::string image_encoder{"data/mobile_sam_image_encoder.engine"};
   std::string mask_decoder{"data/mobile_sam_mask_decoder.engine"};
-  std::string threshold{"0.1"};
+  std::string threshold{"0.3"};
+  int max_detections{5};
   std::string mask_threshold{"0.0"};
   std::string merge_radius{"0.10"};
   std::string python{"python3"};
@@ -141,7 +142,8 @@ void print_usage(const char * program)
     << "  --owl-model <path>          Package-local OWL-ViT model directory\n"
     << "  --image-encoder <path>      SAM image encoder TensorRT engine\n"
     << "  --mask-decoder <path>       SAM mask decoder TensorRT engine\n"
-    << "  --threshold <float>         OWL detection threshold (default: 0.1)\n"
+    << "  --threshold <float>         OWL detection threshold (default: 0.3)\n"
+    << "  --max-detections <int>      Maximum detections to segment per frame after NMS (default: 5)\n"
     << "  --mask-threshold <float>    SAM logits threshold (default: 0.0)\n"
     << "  --merge-radius <meters>     Hotspot merge radius (default: 0.10)\n"
     << "  --python <path>             Python executable (default: python3)\n"
@@ -222,6 +224,19 @@ bool parse_args(int argc, char ** argv, Options & options)
       if (!read_value(i, argc, argv, options.mask_decoder)) return false;
     } else if (arg == "--threshold") {
       if (!read_value(i, argc, argv, options.threshold)) return false;
+    } else if (arg == "--max-detections") {
+      std::string val;
+      if (!read_value(i, argc, argv, val)) return false;
+      try {
+        options.max_detections = std::stoi(val);
+        if (options.max_detections < 1) {
+          std::cerr << "--max-detections must be >= 1\n";
+          return false;
+        }
+      } catch (...) {
+        std::cerr << "--max-detections must be a positive integer\n";
+        return false;
+      }
     } else if (arg == "--mask-threshold") {
       if (!read_value(i, argc, argv, options.mask_threshold)) return false;
     } else if (arg == "--merge-radius") {
@@ -379,6 +394,9 @@ void load_config(Options & opts, const std::string & path)
       load_str(d, "threshold", opts.threshold);
       load_str(d, "mask_threshold", opts.mask_threshold);
       load_str(d, "merge_radius", opts.merge_radius);
+      if (d["max_detections"]) {
+        opts.max_detections = d["max_detections"].as<int>();
+      }
     }
     if (cfg["system"]) {
       const auto & s = cfg["system"];
@@ -546,6 +564,7 @@ static std::string build_request_json(const Options & options)
   j["output_hotspots"]   = options.output_hotspots;
   j["room_id"]           = options.room_id;
   j["merge_radius"]      = std::stod(options.merge_radius);
+  j["max_detections"]  = options.max_detections;
   return j.dump();
 }
 
