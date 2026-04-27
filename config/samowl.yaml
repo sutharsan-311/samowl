@@ -17,9 +17,10 @@ models:
 # Detection and segmentation parameters
 detection:
   text: "hospital bed, table, chair, stretcher"
-  threshold: 0.05       # OWL-ViT score threshold
+  threshold: 0.3        # OWL-ViT score threshold
+  max_detections: 5    # Maximum detections to segment per frame after NMS
   mask_threshold: 0.0   # SAM logits threshold
-  merge_radius: 0.1     # 3D radius in metres for merging same-label hotspots
+  merge_radius: 0.35    # 3D radius in metres for merging same-label hotspots
   max_points: 50000     # Maximum masked points written to PCD
 
 # System-level settings
