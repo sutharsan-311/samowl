@@ -78,7 +78,7 @@ class NanoOwlPredictor:
         with torch.no_grad():
             _, image_class_embeds, logit_shift, logit_scale, pred_boxes = self.image_encoder(roi_img)
         image_class_embeds = image_class_embeds.half()
-        image_class_embeds = image_class_embeds / (image_class_embeds.norm(dim=-1, keepdim=True) + 1e-6)
+        image_class_embeds = image_class_embeds / (torch.linalg.norm(image_class_embeds.float(), dim=-1, keepdim=True).half() + 1e-6)
         logit_shift = logit_shift.half()
         logit_scale = logit_scale.half()
 
