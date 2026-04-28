@@ -1284,12 +1284,24 @@ private:
       detections_snapshot = scan_detections_;
     }
 
+    // Higher value = wins when two labels occupy the same 3D position.
+    auto label_priority = [](const std::string & s) -> int {
+      if (s == "hospital bed") return 10;
+      if (s == "stretcher")    return  8;
+      if (s == "chair")        return  5;
+      if (s == "table")        return  5;
+      return 0;
+    };
+
     for (const auto & det : detections_snapshot) {
       bool merged = false;
       for (auto & node : node_list) {
-        if (node.label == det.label &&
-            dist3(node.cx, node.cy, node.cz, det.cx, det.cy, det.cz) < merge_r)
-        {
+        if (dist3(node.cx, node.cy, node.cz, det.cx, det.cy, det.cz) < merge_r) {
+          // Same 3D location: merge. If labels differ, keep the higher-priority one.
+          if (node.label != det.label &&
+              label_priority(det.label) > label_priority(node.label)) {
+            node.label = det.label;
+          }
           const float w = static_cast<float>(node.detection_count);
           node.cx = (node.cx * w + det.cx) / (w + 1.0f);
           node.cy = (node.cy * w + det.cy) / (w + 1.0f);
