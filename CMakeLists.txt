@@ -56,6 +56,8 @@ install(PROGRAMS
   scripts/scene_query_node.py
   scripts/scene_graph.py
   scripts/scene_query_cli.py
+  scripts/object_registry_node.py
+  scripts/nav_mission_node.py
   DESTINATION share/${PROJECT_NAME}/scripts
 )
 install(DIRECTORY data DESTINATION share/${PROJECT_NAME})
