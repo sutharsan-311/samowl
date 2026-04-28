@@ -57,5 +57,5 @@ depth:
 # Scene graph construction parameters
 graph:
   near_threshold: 1.0      # C++ scan edge building + scene_graph_node.py
-  match_threshold: 0.6     # scene_graph_node.py node merge
-  create_threshold: 0.5    # scene_graph_node.py node creation
+  match_threshold: 0.85    # scene_graph_node.py node merge
+  create_threshold: 0.75   # scene_graph_node.py node creation
