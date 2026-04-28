@@ -16,8 +16,8 @@ models:
 
 # Detection and segmentation parameters
 detection:
-  text: "hospital bed, table, chair, stretcher"
-  threshold: 0.1        # OWL-ViT score threshold
+  text: "hospital bed, tary, chair"
+  threshold: 0.2        # OWL-ViT score threshold
   max_detections: 5    # Maximum detections to segment per frame after NMS
   mask_threshold: 0.0   # SAM logits threshold
   merge_radius: 0.35    # 3D radius in metres for merging same-label hotspots
