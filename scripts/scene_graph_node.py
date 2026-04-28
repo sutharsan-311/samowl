@@ -46,6 +46,7 @@ class SceneGraphNode(Node):
         self._near_threshold   = NEAR_THRESHOLD
         self._match_threshold  = MATCH_THRESHOLD
         self._create_threshold = CREATE_THRESHOLD
+        self._label_thresholds: dict = {}  # label → {match_threshold, create_threshold}
         try:
             import yaml
             from ament_index_python.packages import get_package_share_directory
@@ -57,9 +58,14 @@ class SceneGraphNode(Node):
                 self._near_threshold   = float(_g.get('near_threshold',   self._near_threshold))
                 self._match_threshold  = float(_g.get('match_threshold',  self._match_threshold))
                 self._create_threshold = float(_g.get('create_threshold', self._create_threshold))
+                for lbl, overrides in (_g.get('label_thresholds') or {}).items():
+                    self._label_thresholds[lbl] = {
+                        'match':  float(overrides.get('match_threshold',  self._match_threshold)),
+                        'create': float(overrides.get('create_threshold', self._create_threshold)),
+                    }
             self.get_logger().info(
                 f'Graph thresholds: near={self._near_threshold} match={self._match_threshold} '
-                f'create={self._create_threshold}')
+                f'create={self._create_threshold} per_label={self._label_thresholds}')
         except Exception as exc:
             self.get_logger().warn(f'Could not load graph config: {exc} — using defaults')
 
@@ -114,6 +120,10 @@ class SceneGraphNode(Node):
     #  State management                                                    #
     # ------------------------------------------------------------------ #
 
+    def _thresholds(self, label: str):
+        o = self._label_thresholds.get(label, {})
+        return o.get('match', self._match_threshold), o.get('create', self._create_threshold)
+
     def _find_best_match(self, label: str, position: list):
         """Return (node_id, distance) of the closest node within create_threshold.
 
@@ -134,18 +144,17 @@ class SceneGraphNode(Node):
                 best_dist = d
                 best_id   = node_id
         # Prefer a same-label node when it is a viable match.
-        if same_label_id is not None and same_label_d < self._match_threshold:
+        match_t, _ = self._thresholds(label)
+        if same_label_id is not None and same_label_d < match_t:
             return same_label_id, same_label_d
         return best_id, best_dist
 
     def _upsert_node(self, label: str, position: list) -> None:
         best_id, best_dist = self._find_best_match(label, position)
+        match_t, create_t = self._thresholds(label)
         now = time.time()
 
-        # Hysteresis: match if an existing node is within MATCH_THRESHOLD (0.6 m).
-        # Only create a new node if the closest candidate is beyond CREATE_THRESHOLD
-        # (0.5 m) — the gap prevents oscillation at the boundary.
-        if best_id is not None and best_dist < self._match_threshold:
+        if best_id is not None and best_dist < match_t:
             node = self.nodes[best_id]
             dt   = now - node['last_seen']
 
@@ -169,7 +178,7 @@ class SceneGraphNode(Node):
 
             node['position']  = _update_position(node['position'], position)
             node['last_seen'] = now
-        elif best_dist >= self._create_threshold:
+        elif best_dist >= create_t:
             new_id = f'{label}_{self._label_counters[label]}'
             self._label_counters[label] += 1
             self.nodes[new_id] = {

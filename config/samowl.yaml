@@ -57,5 +57,9 @@ depth:
 # Scene graph construction parameters
 graph:
   near_threshold: 1.0      # C++ scan edge building + scene_graph_node.py
-  match_threshold: 0.85    # scene_graph_node.py node merge
-  create_threshold: 0.75   # scene_graph_node.py node creation
+  match_threshold: 0.85    # scene_graph_node.py node merge (default)
+  create_threshold: 0.75   # scene_graph_node.py node creation (default)
+  label_thresholds:
+    chair:
+      match_threshold: 2.0   # chairs are small; 3D centroid varies ~2 m across views
+      create_threshold: 1.8
