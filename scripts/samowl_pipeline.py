@@ -3,6 +3,7 @@
 import argparse
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -383,6 +384,43 @@ def estimate_normal(points):
     return (normal / norm).tolist()
 
 
+def compute_object_geometry(map_points, normal, robot_radius=0.3, buffer=0.15):
+    from scipy.spatial import ConvexHull
+
+    mins = map_points.min(axis=0)
+    maxs = map_points.max(axis=0)
+    extent = {
+        "width":  float(maxs[0] - mins[0]),
+        "depth":  float(maxs[1] - mins[1]),
+        "height": float(maxs[2] - mins[2]),
+    }
+
+    xy = map_points[:, :2]
+    if len(xy) >= 3:
+        try:
+            hull = ConvexHull(xy)
+            footprint = xy[hull.vertices].tolist()
+        except Exception:
+            footprint = xy.tolist()
+    else:
+        footprint = xy.tolist()
+
+    centroid = map_points.mean(axis=0)
+    nx, ny = float(normal[0]), float(normal[1])
+    n_len = math.sqrt(nx * nx + ny * ny) or 1.0
+    stop_dist = (extent["depth"] / 2.0) + robot_radius + buffer
+    approach = {
+        "position": [
+            float(centroid[0] + (nx / n_len) * stop_dist),
+            float(centroid[1] + (ny / n_len) * stop_dist),
+            0.0,
+        ],
+        "yaw_rad": float(math.atan2(-ny, -nx)),
+    }
+
+    return extent, footprint, approach
+
+
 def write_pcd(path, points):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -460,6 +498,11 @@ def weighted_average(old_value, old_weight, new_value, new_weight):
 
 def write_hotspot_json(path, args, detection, mask_iou, map_points, normal, camera_model):
     centroid = map_points.mean(axis=0).tolist() if len(map_points) else [0.0, 0.0, 0.0]
+    extent, footprint, approach = (
+        compute_object_geometry(map_points, normal)
+        if len(map_points) >= 3
+        else ({"width": 0.0, "depth": 0.0, "height": 0.0}, [], {"position": centroid[:2] + [0.0], "yaw_rad": 0.0})
+    )
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.exists():
@@ -510,6 +553,9 @@ def write_hotspot_json(path, args, detection, mask_iou, map_points, normal, came
             "label": args.text,
             "position_3d": centroid,
             "normal_vector": normal,
+            "extent": extent,
+            "footprint_2d": footprint,
+            "approach": approach,
             "confidence": detection["score"],
             "detection_count": 1,
             "point_count": int(len(map_points)),
@@ -527,6 +573,9 @@ def write_hotspot_json(path, args, detection, mask_iou, map_points, normal, came
         old_weight = max(int(matched.get("point_count", old_count)), 1)
         matched["position_3d"] = weighted_average(matched["position_3d"], old_weight, centroid, new_weight)
         matched["normal_vector"] = weighted_average(matched.get("normal_vector", normal), old_count, normal, 1)
+        matched["extent"] = extent
+        matched["footprint_2d"] = footprint
+        matched["approach"] = approach
         matched["confidence"] = max(float(matched.get("confidence", 0.0)), float(detection["score"]))
         matched["detection_count"] = old_count + 1
         matched["point_count"] = int(matched.get("point_count", 0)) + int(len(map_points))
