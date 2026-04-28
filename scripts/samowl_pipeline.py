@@ -242,6 +242,9 @@ def resolve_existing_path(path, description):
     )
 
 
+_LABEL_PRIORITY: dict = {"hospital bed": 10, "stretcher": 8, "chair": 5, "table": 5}
+
+
 def bbox_to_points(bbox):
     bbox = np.array(bbox, dtype=np.float32)
     return (
@@ -412,6 +415,19 @@ def write_hotspot_json(path, args, detection, mask_iou, map_points, normal, came
         if distance <= args.merge_radius:
             matched = hotspot
             break
+
+    # Cross-label deduplication: if a different-label hotspot occupies the same 3D
+    # location, merge into it and relabel to whichever label has higher priority.
+    if matched is None:
+        for hotspot in hotspots:
+            if hotspot.get("label") == args.text:
+                continue
+            distance = float(np.linalg.norm(np.array(hotspot["position_3d"], dtype=np.float64) - np.array(centroid)))
+            if distance <= args.merge_radius:
+                if _LABEL_PRIORITY.get(args.text, 0) > _LABEL_PRIORITY.get(hotspot.get("label", ""), 0):
+                    hotspot["label"] = args.text
+                matched = hotspot
+                break
 
     observation = {
         "position_3d": centroid,
