@@ -602,8 +602,7 @@ def _iou(box_a, box_b) -> float:
         return 0.0
     area_a = (box_a[2] - box_a[0]) * (box_a[3] - box_a[1])
     area_b = (box_b[2] - box_b[0]) * (box_b[3] - box_b[1])
-    union = area_a + area_b - inter
-    return inter / union if union > 0 else 0.0
+    return inter / min(area_a, area_b)
 
 
 def nms_detections(detections: list, iou_threshold: float = 0.5) -> list:
