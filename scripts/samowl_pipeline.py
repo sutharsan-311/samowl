@@ -111,7 +111,7 @@ class NanoOwlPredictor:
             with torch.no_grad():
                 out = self.text_model.text_model(**inputs)
                 embeds = self.text_model.text_projection(out.pooler_output).float()  # (Q, 512) fp32
-            embeds = embeds / embeds.norm(dim=-1, keepdim=True)
+            embeds = embeds / (torch.linalg.norm(embeds, dim=-1, keepdim=True) + 1e-6)
             self._text_cache[texts] = _OwlEncodeTextOutput(text_embeds=embeds)
         return self._text_cache[texts]
 
