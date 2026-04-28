@@ -8,6 +8,8 @@ from pathlib import Path
 import sys
 import types
 
+from dataclasses import dataclass
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -15,8 +17,67 @@ import tensorrt as trt
 from PIL import Image, ImageDraw, ImageFont
 from torch2trt import TRTModule
 from transformers import OwlViTProcessor, OwlViTModel
-from nanoowl.image_preprocessor import ImagePreprocessor as _ImagePreprocessor
-from nanoowl.owl_predictor import OwlPredictor as _OwlPredictor, OwlEncodeTextOutput as _OwlEncodeTextOutput
+
+# ---------------------------------------------------------------------------
+# OWL-ViT TRT helpers — inlined so samowl has no nanoowl/nanosam dependency
+# ---------------------------------------------------------------------------
+
+# CLIP normalization constants used by OWL-ViT image preprocessing
+_OWL_PIXEL_MEAN = [0.48145466 * 255.0, 0.4578275 * 255.0, 0.40821073 * 255.0]
+_OWL_PIXEL_STD  = [0.26862954 * 255.0, 0.26130258 * 255.0, 0.27577711 * 255.0]
+
+
+@dataclass
+class _OwlEncodeTextOutput:
+    text_embeds: torch.Tensor
+
+
+@dataclass
+class _OwlEncodeImageOutput:
+    image_embeds: torch.Tensor
+    image_class_embeds: torch.Tensor
+    logit_shift: torch.Tensor
+    logit_scale: torch.Tensor
+    pred_boxes: torch.Tensor
+
+
+def _preprocess_pil_image_owl(image: "Image.Image") -> torch.Tensor:
+    """PIL image → normalized CUDA float32 tensor (1, C, H, W) using CLIP stats."""
+    t = torch.from_numpy(np.asarray(image)).permute(2, 0, 1)[None, ...].cuda().float()
+    mean = torch.tensor(_OWL_PIXEL_MEAN, device="cuda")[:, None, None]
+    std  = torch.tensor(_OWL_PIXEL_STD,  device="cuda")[:, None, None]
+    return t.sub_(mean).div_(std)
+
+
+def _load_owl_image_encoder_engine(engine_path: str) -> "torch.nn.Module":
+    """Load the NanoOWL TRT image encoder and wrap it to return _OwlEncodeImageOutput."""
+    with trt.Logger() as logger, trt.Runtime(logger) as runtime:
+        with open(engine_path, "rb") as f:
+            engine = runtime.deserialize_cuda_engine(f.read())
+
+    base = TRTModule(
+        engine,
+        input_names=["image"],
+        output_names=["image_embeds", "image_class_embeds", "logit_shift", "logit_scale", "pred_boxes"],
+    )
+
+    class _EngineWrapper(torch.nn.Module):
+        def __init__(self, mod: TRTModule):
+            super().__init__()
+            self.mod = mod
+
+        @torch.no_grad()
+        def forward(self, image: torch.Tensor) -> "_OwlEncodeImageOutput":
+            out = self.mod(image)
+            return _OwlEncodeImageOutput(
+                image_embeds=out[0],
+                image_class_embeds=out[1],
+                logit_shift=out[2],
+                logit_scale=out[3],
+                pred_boxes=out[4],
+            )
+
+    return _EngineWrapper(base)
 
 
 _OWL_IMAGE_SIZES = {
@@ -31,20 +92,17 @@ def _owl_image_size(model_name: str) -> int:
 
 
 class NanoOwlPredictor:
-    """OWL-ViT detector: nanoowl TRT image encoder + cached PyTorch text encoder."""
+    """OWL-ViT detector: TRT image encoder (inlined) + cached PyTorch text encoder."""
 
     def __init__(self, model_name: str, image_encoder_engine: str, threshold: float = 0.3):
         self.processor = OwlViTProcessor.from_pretrained(model_name, local_files_only=True)
         self.text_model = OwlViTModel.from_pretrained(model_name, local_files_only=True)
         self.text_model = self.text_model.cuda().half()
         self.text_model.train(False)
-        # Proper nanoowl wrapper: returns OwlEncodeImageOutput and handles batched ROIs.
-        self.image_encoder = _OwlPredictor.load_image_encoder_engine(image_encoder_engine)
+        self.image_encoder = _load_owl_image_encoder_engine(image_encoder_engine)
         self.threshold = threshold
         self._text_cache: dict = {}
         self._image_size = _owl_image_size(model_name)
-        self._preprocessor = _ImagePreprocessor().cuda()
-        self._preprocessor.train(False)
 
     def _encode_text(self, texts: tuple) -> "_OwlEncodeTextOutput":
         if texts not in self._text_cache:
@@ -62,7 +120,7 @@ class NanoOwlPredictor:
         text_enc = self._encode_text(texts)
 
         W, H = image.size
-        img_t = self._preprocessor.preprocess_pil_image(image)
+        img_t = _preprocess_pil_image_owl(image)
         # Resize full image to the model's input size; pred_boxes [0,1] map as
         # x_px = x_norm * W, y_px = y_norm * H with no ROI offset correction needed.
         roi_img = F.interpolate(img_t, size=(self._image_size, self._image_size), mode="bilinear", align_corners=False)
@@ -163,6 +221,8 @@ def preprocess_points(points, image_size, size=1024):
 
 
 def run_mask_decoder(mask_decoder_engine, features, points, point_labels, mask_input=None):
+    if len(points) != len(point_labels):
+        raise ValueError(f"points/point_labels length mismatch: {len(points)} vs {len(point_labels)}")
     image_point_coords = torch.from_numpy(np.array([points], dtype=np.float32)).cuda()
     image_point_labels = torch.from_numpy(np.array([point_labels], dtype=np.float32)).cuda()
 
@@ -193,10 +253,13 @@ def upscale_mask(mask, image_shape, size=256):
 
 
 class Predictor:
-    def __init__(self, image_encoder_engine, mask_decoder_engine, image_encoder_size=1024):
+    def __init__(self, image_encoder_engine, mask_decoder_engine,
+                 image_encoder_size=1024, orig_image_encoder_size=1024):
         self.image_encoder_engine = load_image_encoder_engine(image_encoder_engine)
         self.mask_decoder_engine = load_mask_decoder_engine(mask_decoder_engine)
         self.image_encoder_size = image_encoder_size
+        # SAM's coordinate space is always 1024 regardless of encoder compile size.
+        self.orig_image_encoder_size = orig_image_encoder_size
 
     def set_image(self, image):
         self.image = image
@@ -204,7 +267,7 @@ class Predictor:
         self.features = self.image_encoder_engine(self.image_tensor)
 
     def predict(self, points, point_labels, mask_input=None):
-        points = preprocess_points(points, (self.image.height, self.image.width), self.image_encoder_size)
+        points = preprocess_points(points, (self.image.height, self.image.width), self.orig_image_encoder_size)
         mask_iou, low_res_mask = run_mask_decoder(
             self.mask_decoder_engine,
             self.features,
