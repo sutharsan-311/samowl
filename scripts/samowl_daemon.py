@@ -432,7 +432,7 @@ def parse_args(config: dict) -> argparse.Namespace:
     )
     parser.add_argument(
         "--image-encoder",
-        default=models.get("image_encoder", "data/resnet18_image_encoder.engine"),
+        default=models.get("image_encoder", "data/mobile_sam_image_encoder.engine"),
         help="SAM image encoder TensorRT engine",
     )
     parser.add_argument(
