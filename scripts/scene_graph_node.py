@@ -21,6 +21,8 @@ NEAR_THRESHOLD   = 1.5  # metres — nodes within this radius get a "near" edge
 NODE_TIMEOUT     = 3.0  # seconds — nodes unseen longer than this are pruned
 MAX_SPEED        = 5.0  # m/s   — clamp; faster observations are sensor noise
 
+_LABEL_PRIORITY: dict = {"hospital bed": 10, "stretcher": 8, "chair": 5, "table": 5}
+
 
 def _dist(a, b) -> float:
     return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
@@ -113,16 +115,27 @@ class SceneGraphNode(Node):
     # ------------------------------------------------------------------ #
 
     def _find_best_match(self, label: str, position: list):
-        """Return (node_id, distance) of the closest same-label node, or (None, inf)."""
-        best_id   = None
-        best_dist = float('inf')
+        """Return (node_id, distance) of the closest node within create_threshold.
+
+        Same-label nodes take priority; cross-label nodes are also returned so
+        that _upsert_node can relabel or suppress duplicates at the same position.
+        """
+        best_id       = None
+        best_dist     = float('inf')
+        same_label_id = None
+        same_label_d  = float('inf')
         for node_id, node in self.nodes.items():
-            if node['label'] != label:
-                continue
             d = _dist(node['position'], position)
+            if node['label'] == label:
+                if d < same_label_d:
+                    same_label_d  = d
+                    same_label_id = node_id
             if d < best_dist:
                 best_dist = d
                 best_id   = node_id
+        # Prefer a same-label node when it is a viable match.
+        if same_label_id is not None and same_label_d < self._match_threshold:
+            return same_label_id, same_label_d
         return best_id, best_dist
 
     def _upsert_node(self, label: str, position: list) -> None:
@@ -146,6 +159,13 @@ class SceneGraphNode(Node):
                                         for nv, ov in zip(raw_vel, old_vel)]
                     print(f'[GRAPH] Matched {label} → {best_id} '
                           f'({best_dist:.2f} m) speed={speed:.2f} m/s')
+
+            # Cross-label upgrade: relabel the existing node if the incoming
+            # detection has a higher-priority label (e.g. "hospital bed" > "chair").
+            if node['label'] != label and \
+                    _LABEL_PRIORITY.get(label, 0) > _LABEL_PRIORITY.get(node['label'], 0):
+                print(f'[GRAPH] Relabeled {best_id}: {node["label"]!r} → {label!r}')
+                node['label'] = label
 
             node['position']  = _update_position(node['position'], position)
             node['last_seen'] = now
