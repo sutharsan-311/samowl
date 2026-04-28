@@ -9,8 +9,8 @@ topics:
 
 # ML model paths (relative to package share directory or absolute)
 models:
-  owl: "data/owlvit-base-patch32"
-  owl_encoder: "data/owl_image_encoder_patch32.engine"
+  owl: "data/owlv2-base-patch16"
+  owl_encoder: "data/owlv2_image_encoder_patch16.engine"
   image_encoder: "data/resnet18_image_encoder.engine"
   mask_decoder: "data/mobile_sam_mask_decoder.engine"
 

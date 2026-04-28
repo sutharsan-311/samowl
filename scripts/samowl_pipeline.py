@@ -16,7 +16,7 @@ import torch.nn.functional as F
 import tensorrt as trt
 from PIL import Image, ImageDraw, ImageFont
 from torch2trt import TRTModule
-from transformers import OwlViTProcessor, OwlViTModel
+from transformers import Owlv2Processor, Owlv2ForObjectDetection
 
 # ---------------------------------------------------------------------------
 # OWL-ViT TRT helpers — inlined so samowl has no nanoowl/nanosam dependency
@@ -81,9 +81,11 @@ def _load_owl_image_encoder_engine(engine_path: str) -> "torch.nn.Module":
 
 
 _OWL_IMAGE_SIZES = {
-    "google/owlvit-base-patch32": 768, "owlvit-base-patch32": 768,
-    "google/owlvit-base-patch16": 768, "owlvit-base-patch16": 768,
-    "google/owlvit-large-patch14": 840, "owlvit-large-patch14": 840,
+    "google/owlvit-base-patch32": 768,   "owlvit-base-patch32": 768,
+    "google/owlvit-base-patch16": 768,   "owlvit-base-patch16": 768,
+    "google/owlvit-large-patch14": 840,  "owlvit-large-patch14": 840,
+    "google/owlv2-base-patch16": 960,    "owlv2-base-patch16": 960,
+    "google/owlv2-large-patch14": 960,   "owlv2-large-patch14": 960,
 }
 
 
@@ -95,10 +97,10 @@ class NanoOwlPredictor:
     """OWL-ViT detector: TRT image encoder (inlined) + cached PyTorch text encoder."""
 
     def __init__(self, model_name: str, image_encoder_engine: str, threshold: float = 0.3):
-        self.processor = OwlViTProcessor.from_pretrained(model_name, local_files_only=True)
-        self.text_model = OwlViTModel.from_pretrained(model_name, local_files_only=True)
-        self.text_model = self.text_model.cuda().half()
-        self.text_model.train(False)
+        self.processor = Owlv2Processor.from_pretrained(model_name, local_files_only=True)
+        self._owl_model = Owlv2ForObjectDetection.from_pretrained(model_name, local_files_only=True)
+        self._owl_model = self._owl_model.cuda().half()
+        self._owl_model.train(False)
         self.image_encoder = _load_owl_image_encoder_engine(image_encoder_engine)
         self.threshold = threshold
         self._text_cache: dict = {}
@@ -109,8 +111,9 @@ class NanoOwlPredictor:
             inputs = self.processor(text=list(texts), return_tensors="pt", padding=True)
             inputs = {k: v.cuda() for k, v in inputs.items()}
             with torch.no_grad():
-                out = self.text_model.text_model(**inputs)
-                embeds = self.text_model.text_projection(out.pooler_output).float()  # (Q, 512) fp32
+                # OWLv2 nests text encoder under .owlv2 (vs OWL-ViT's top-level .text_model)
+                out = self._owl_model.owlv2.text_model(**inputs)
+                embeds = self._owl_model.owlv2.text_projection(out.pooler_output).float()
             embeds = embeds / (torch.linalg.norm(embeds, dim=-1, keepdim=True) + 1e-6)
             self._text_cache[texts] = _OwlEncodeTextOutput(text_embeds=embeds)
         return self._text_cache[texts]
