@@ -63,3 +63,6 @@ graph:
     chair:
       match_threshold: 2.0   # chairs are small; 3D centroid varies ~2 m across views
       create_threshold: 1.8
+  label_merge_radii:
+    hospital bed: 0.95       # beds have ~0.87m max intra-detection spread
+    chair: 0.35              # 2 physical chairs are 0.44m apart; keep them distinct

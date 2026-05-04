@@ -81,6 +81,7 @@ struct Options
   std::string output_dir{"/output"};  // scan mode: directory for final JSON output
   double depth_scale{0.001};
   double near_threshold{1.0};
+  std::map<std::string, float> label_merge_radii;  // per-label override for scan graph dedup
   double depth_min{0.1};
   double depth_max{10.0};
   int daemon_startup_timeout_ms{30000};
@@ -442,6 +443,16 @@ void load_config(Options & opts, const std::string & path)
     if (cfg["graph"]) {
       const auto & g = cfg["graph"];
       if (g["near_threshold"])  { opts.near_threshold  = g["near_threshold"].as<double>(); }
+      if (g["label_merge_radii"]) {
+        for (const auto & kv : g["label_merge_radii"]) {
+          const std::string k = kv.first.as<std::string>();
+          const float v = kv.second.as<float>();
+          opts.label_merge_radii[k] = v;
+          std::cerr << "[config] label_merge_radii[\"" << k << "\"] = " << v << "\n";
+        }
+      } else {
+        std::cerr << "[config] label_merge_radii key not found in graph section\n";
+      }
     }
   } catch (const YAML::Exception & e) {
     std::cerr << "Warning: could not parse config " << path << ": " << e.what() << "\n";
@@ -1295,8 +1306,22 @@ private:
 
     for (const auto & det : detections_snapshot) {
       bool merged = false;
+      const auto lr_it = options_.label_merge_radii.find(det.label);
+      const float det_merge_r = (lr_it != options_.label_merge_radii.end()) ? lr_it->second : merge_r;
       for (auto & node : node_list) {
-        if (dist3(node.cx, node.cy, node.cz, det.cx, det.cy, det.cz) < merge_r) {
+        const auto nr_it = options_.label_merge_radii.find(node.label);
+        const float eff_r = std::max(det_merge_r,
+          (nr_it != options_.label_merge_radii.end()) ? nr_it->second : merge_r);
+        {
+          float d3 = dist3(node.cx, node.cy, node.cz, det.cx, det.cy, det.cz);
+          if (d3 < 1.5f) {
+            std::cerr << "[dedup] det=" << det.label
+              << " pos=(" << det.cx << "," << det.cy << "," << det.cz << ")"
+              << " node=" << node.id << " pos=(" << node.cx << "," << node.cy << ")"
+              << " dist=" << d3 << " eff_r=" << eff_r << "\n";
+          }
+        }
+        if (dist3(node.cx, node.cy, node.cz, det.cx, det.cy, det.cz) < eff_r) {
           // Same 3D location: merge. If labels differ, keep the higher-priority one.
           if (node.label != det.label &&
               label_priority(det.label) > label_priority(node.label)) {
