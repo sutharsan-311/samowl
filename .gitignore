@@ -13,3 +13,6 @@ __pycache__/
 graphify-out/
 hotspots.json
 log.txt
+
+# Project instructions (local only)
+CLAUDE.md
