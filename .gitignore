@@ -8,3 +8,8 @@ rosbag2_*/
 *.db3
 __pycache__/
 *.pyc
+
+# Generated analysis
+graphify-out/
+hotspots.json
+log.txt
