@@ -1,44 +1,45 @@
 # samowl
 
-`samowl` is a vision system that detects objects in 3D space using OWL-ViT (open-vocabulary detection) and SAM (segmentation), with spatial projection into a robot's map frame.
+Vision system that detects objects in 3D space using OWLv2 (open-vocabulary detection) and SAM (segmentation), with spatial projection and scene graph persistence.
 
 ## Architecture
 
-samowl is a **two-process system with a hard language boundary**:
+**Two-process system with hard language boundary:**
 
 ```
-ROS2 C++ Executive (samowl.cpp)
+C++ ROS2 Executive (samowl.cpp)
 ├─ subscribes to RGB/depth topics
-├─ looks up camera pose in TF
-├─ saves frame data to /tmp/samowl
-├─ fork/exec Python daemon per frame
-└─ publishes detections as hotspots
+├─ fork/exec Python pipeline per frame ⚠️ BOTTLENECK
+└─ manages scene graph deduplication
 
-Python Daemon (samowl_daemon.py)
-├─ loads models once (OWL-ViT, SAM)
-├─ listens on Unix socket
-├─ runs inference per frame
-└─ returns results via file
+Python Pipeline (samowl_pipeline.py)
+├─ OWLv2 detection + SAM segmentation
+├─ 3D projection & hotspot fusion
+└─ JSON IPC via /tmp/samowl
+
+ROS2 Scene Graph (scene_graph_node.py)
+├─ persistent object tracking across frames
+├─ per-label match/create thresholds
+└─ spatial query interface (scene_query_node.py)
 ```
 
-**Why two languages?**
-- C++ handles ROS2, TF, topic subscription, lifecycle
-- Python owns all ML: OWL-ViT (Transformers), SAM (TensorRT)
-- Clean separation prevents Python's GIL from blocking ROS callbacks
+**Why two languages:**
+- C++ owns ROS2 lifecycle, TF lookups, topic subscription
+- Python owns ML (OWLv2, SAM TensorRT)
+- Separation prevents Python's GIL from blocking C++ callbacks
 
-**The bottleneck:** Each frame spawns a new Python process via fork/execvp. This is necessary because model reloading is expensive, but process creation adds latency. The long-term target is a persistent daemon that stays alive between frames (documented in CLAUDE.md).
+**Critical bottleneck:** Each frame spawns a new Python process. Process creation overhead is significant; long-term fix is persistent daemon (see CLAUDE.md).
 
 ### Core Components
 
-| Component | Role | Connections |
-|-----------|------|-------------|
-| `main()` (C++) | Executive; coordinates all subsystems | 14 edges |
-| `SceneGraphNode` (ROS2) | Maintains scene graph of detected objects | 11 edges |
-| `SceneQueryNode` (ROS2) | Query interface for scene (spatial queries) | 8 edges |
-| `ModelBundle` (Python) | Holds loaded OWL-ViT + SAM models | 6 edges |
-| `Persistent Daemon` | Target arch for eliminating per-frame fork overhead | design doc |
-
-See `graphify-out/graph.html` for the full dependency graph (120 nodes, 8 communities).
+| Component | Role |
+|-----------|------|
+| `samowl` (main) | C++ ROS2 node; frame orchestration and deduplication |
+| `samowl_pipeline.py` | ML inference: OWLv2 + SAM + 3D projection |
+| `scene_graph_node.py` | Persistent object tracking across frames |
+| `scene_query_node.py` | Spatial query interface (nearest, in-radius, by-label) |
+| `object_registry_node.py` | Object lifecycle tracking |
+| `nav_mission_node.py` | Downstream consumer (mission planning over detections) |
 
 ### Operating Modes
 
@@ -134,18 +135,50 @@ The depth topic must be aligned to the RGB camera for the saved `CameraInfo` int
 
 The package includes its model files under `samowl/data` and uses these defaults:
 
-- `data/owlvit-base-patch32`
+- `data/owlv2-base-patch16/`
+- `data/owlv2_image_encoder_patch16.engine`
 - `data/resnet18_image_encoder.engine`
 - `data/mobile_sam_mask_decoder.engine`
 
 No extra model path arguments are needed for the default package layout.
 
+## Configuration
+
+Configuration is loaded from `config/samowl.yaml` (see that file for all options). Key parameters:
+
+### Detection Pipeline
+- `detection.threshold` — OWLv2 confidence score threshold (0.0–1.0). Lower = more detections, higher recall but lower precision
+- `detection.max_detections` — Maximum objects to segment per frame after NMS
+- `detection.merge_radius` — 3D distance (meters) for deduplicating same-label hotspots within a frame
+
+### Scene Graph Merging
+The scene graph node uses label-specific match and create thresholds:
+
+```yaml
+graph:
+  match_threshold: 0.95    # default: merge detections into existing nodes if centroid distance < this (meters)
+  create_threshold: 0.85   # default: create a new node if no existing node is within this distance
+  label_thresholds:
+    chair:
+      match_threshold: 2.0   # chairs have ~2m variation in centroid across views
+      create_threshold: 1.8
+    hospital bed:
+      match_threshold: 1.5
+      create_threshold: 1.3
+  label_merge_radii:
+    hospital bed: 0.95       # beds have ~0.87m max intra-detection spread
+    chair: 0.35              # 2 physical chairs are 0.44m apart; keep distinct
+```
+
+Per-label thresholds override defaults and help prevent spurious merges across multiple views. For example, chairs cluster with large position variance, so a 2.0m match threshold prevents treating every view of the same chair as a new object.
+
 ## Models
 
 All models are stored in `data/`:
 
-- `owlvit-base-patch32/` — OWL-ViT base model from Hugging Face
-- `resnet18_image_encoder.engine` — TensorRT optimized ResNet18 (vision encoder)
+- `owlv2-base-patch16/` — OWLv2 base model from Hugging Face (HF format with tokenizer)
+- `owlv2_image_encoder_patch16.engine` — TensorRT optimized OWLv2 image encoder
+- `resnet18_image_encoder.engine` — TensorRT optimized ResNet18 (SAM vision encoder)
 - `mobile_sam_mask_decoder.engine` — TensorRT optimized SAM decoder
 
 **⚠️ TensorRT engines are hardware-specific** — they require an exact match of:
@@ -153,30 +186,38 @@ All models are stored in `data/`:
 - CUDA version
 - TensorRT version
 
-Engines are not regenerated in this repo. If models don't load, check the engine version against your runtime.
+Engines are not regenerated in this repo. To build them for your hardware:
 
-## Understanding the Codebase
-
-The `graphify-out/` directory contains an automatically-generated knowledge graph of the codebase:
-
-- **graph.html** — Interactive visualization (open in browser)
-- **GRAPH_REPORT.md** — Detailed analysis of god nodes, communities, and surprising connections
-- **graph.json** — Raw graph data (120 nodes, 177 edges, 8 communities)
-
-**Key insights from the graph:**
-
-1. **`main()` is a god node** (14 connections) — touches all subsystems. Consider breaking up long-running operations to prevent blocking ROS callbacks.
-
-2. **Daemon system is fragmented** — Three separate communities (1, 2, 7) handle daemon concerns but lack cohesion. The persistent daemon is currently a design document (CLAUDE.md), not implemented.
-
-3. **Scene Graph + Query form a coherent subsystem** — These two ROS2 nodes are tightly coupled and handle spatial queries well.
-
-4. **Bridge node: `Predictor`** (high centrality) — Connects C++ Executive to ML inference. This is where architecture bottleneck manifests (per-frame process spawn).
-
-**To update the graph after code changes:**
 ```bash
-/graphify .
+python3 scripts/build_owl_engine.py \
+  --owl-dir data/owlv2-base-patch16 \
+  --output data/owlv2_image_encoder_patch16.engine
 ```
+
+If models fail to load, verify the engine version matches your CUDA and TensorRT runtime.
+
+## Scene Graph and Deduplication
+
+Detections are merged across frames using **per-label thresholds** to prevent spurious re-detections while maintaining distinctness.
+
+**Per-frame flow:**
+1. Detections in frame → C++ dedup (within-frame, merge_radius) → hotspot JSON
+2. Hotspot → scene_graph_node (merge with persistent state using match_threshold)
+3. Updated objects → scene_query_node (spatial queries)
+
+**Why per-label?** Different object classes have different position variance:
+- **Chairs**: high variance (~2m), need relaxed match_threshold (2.0m) to avoid treating same chair as new object
+- **Beds**: low variance (~0.95m), tighter thresholds prevent spurious merges
+
+## Key Architecture Decisions
+
+**`main()` is the orchestration point** — all frame processing flows through it. This makes it a critical bottleneck when per-frame overhead is high (currently fork/exec adds ~200-500ms per frame).
+
+**File-based IPC** (`/tmp/samowl`) is temporary. C++ writes frame data, Python reads/processes, writes results. This is replaced by persistent daemon + bidirectional JSON socket in the roadmap.
+
+**Per-label thresholds are critical** — different object classes (chairs vs. beds) have different detection variance across views. Generic thresholds cause either spurious duplicates or missed distinct objects.
+
+**Model loading is per-frame** because Python subprocess exits after processing. Cached models in persistent daemon would eliminate this overhead.
 
 ## Design Decisions
 
